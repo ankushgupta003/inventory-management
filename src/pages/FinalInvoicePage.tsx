@@ -37,7 +37,7 @@ export default function FinalInvoicePage() {
 
       <DataTable
         columns={columns}
-        data={invoices as unknown as Record<string, unknown>[]}
+        data={invoices}
         searchKey="customerName"
         searchPlaceholder="Search invoices..."
         actions={(row) => {

@@ -66,7 +66,7 @@ export default function ItemMasterPage() {
 
       <DataTable
         columns={columns}
-        data={items as unknown as Record<string, unknown>[]}
+        data={items}
         searchKey="storeName"
         searchPlaceholder="Search items..."
         actions={(row) => {

@@ -59,15 +59,15 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="stock" className="mt-4">
-          <DataTable columns={stockColumns} data={stockData as unknown as Record<string, unknown>[]} searchKey="name" searchPlaceholder="Search items..." />
+          <DataTable columns={stockColumns} data={stockData} searchKey="name" searchPlaceholder="Search items..." />
         </TabsContent>
 
         <TabsContent value="sales" className="mt-4">
-          <DataTable columns={salesColumns} data={salesData as unknown as Record<string, unknown>[]} searchKey="customer" searchPlaceholder="Search by customer..." />
+          <DataTable columns={salesColumns} data={salesData} searchKey="customer" searchPlaceholder="Search by customer..." />
         </TabsContent>
 
         <TabsContent value="production" className="mt-4">
-          <DataTable columns={prodColumns} data={productionData as unknown as Record<string, unknown>[]} searchKey="outputItems" searchPlaceholder="Search by output..." />
+          <DataTable columns={prodColumns} data={productionData} searchKey="outputItems" searchPlaceholder="Search by output..." />
         </TabsContent>
       </Tabs>
     </div>

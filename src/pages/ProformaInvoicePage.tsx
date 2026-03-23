@@ -85,7 +85,7 @@ export default function ProformaInvoicePage() {
 
       <DataTable
         columns={columns}
-        data={pis as unknown as Record<string, unknown>[]}
+        data={pis}
         searchKey="customerName"
         searchPlaceholder="Search by customer..."
         actions={(row) => {

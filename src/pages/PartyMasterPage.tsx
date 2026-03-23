@@ -63,7 +63,7 @@ export default function PartyMasterPage() {
 
       <DataTable
         columns={columns}
-        data={parties as unknown as Record<string, unknown>[]}
+        data={parties}
         searchKey="name"
         searchPlaceholder="Search parties..."
         actions={(row) => {
