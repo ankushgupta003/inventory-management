@@ -70,11 +70,11 @@ export default function ItemMasterPage() {
         searchKey="storeName"
         searchPlaceholder="Search items..."
         actions={(row) => {
-          const item = row as unknown as Item;
+          
           return (
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => openEdit(item)}><Edit2 className="h-3.5 w-3.5" /></Button>
-              <Button variant="ghost" size="sm" onClick={() => setDeleteId(item.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Edit2 className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
             </div>
           );
         }}

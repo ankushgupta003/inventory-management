@@ -89,11 +89,11 @@ export default function ProformaInvoicePage() {
         searchKey="customerName"
         searchPlaceholder="Search by customer..."
         actions={(row) => {
-          const pi = row as unknown as ProformaInvoice;
+          
           return (
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => setViewPI(pi)}><Eye className="h-3.5 w-3.5" /></Button>
-              {pi.status !== 'closed' && <Button variant="ghost" size="sm" onClick={() => closePI(pi.id)} className="text-xs">Close</Button>}
+              <Button variant="ghost" size="sm" onClick={() => setViewPI(row)}><Eye className="h-3.5 w-3.5" /></Button>
+              {row.status !== 'closed' && <Button variant="ghost" size="sm" onClick={() => closePI(row.id)} className="text-xs">Close</Button>}
             </div>
           );
         }}

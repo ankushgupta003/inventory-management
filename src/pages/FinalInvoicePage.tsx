@@ -41,10 +41,10 @@ export default function FinalInvoicePage() {
         searchKey="customerName"
         searchPlaceholder="Search invoices..."
         actions={(row) => {
-          const inv = row as unknown as InvoiceData;
+          
           return (
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => setViewInvoice(inv)}><Eye className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => setViewInvoice(row)}><Eye className="h-3.5 w-3.5" /></Button>
               <Button variant="ghost" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /></Button>
             </div>
           );

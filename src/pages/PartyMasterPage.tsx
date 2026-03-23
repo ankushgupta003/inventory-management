@@ -67,11 +67,11 @@ export default function PartyMasterPage() {
         searchKey="name"
         searchPlaceholder="Search parties..."
         actions={(row) => {
-          const p = row as unknown as Party;
+          
           return (
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Edit2 className="h-3.5 w-3.5" /></Button>
-              <Button variant="ghost" size="sm" onClick={() => setDeleteId(p.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Edit2 className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
             </div>
           );
         }}
