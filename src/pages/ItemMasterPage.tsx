@@ -19,7 +19,7 @@ const initialItems: Item[] = [
   { id: '5', storeName: 'Packing Box Large', tallyName: 'PKG-BOX-L', hsnCode: '4819', taxPercent: 12, unit: 'pcs', type: 'raw_material', currentStock: 300, createdAt: '2024-03-01' },
 ];
 
-const emptyItem = { storeName: '', tallyName: '', hsnCode: '', taxPercent: 18, unit: 'kg', type: 'raw_material' as const };
+const emptyItem = { storeName: '', tallyName: '', hsnCode: '', taxPercent: 18, unit: 'kg', type: 'raw_material' as Item['type'] };
 
 export default function ItemMasterPage() {
   const [items, setItems] = useState<Item[]>(initialItems);

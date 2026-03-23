@@ -18,7 +18,7 @@ const initialParties: Party[] = [
   { id: '3', name: 'PQR Trading Co.', type: 'both', gstNumber: '24AAECR1234M1ZP', contact: '9988776655', email: 'pqr@trade.com', address: 'Ahmedabad, GJ', createdAt: '2024-02-05' },
 ];
 
-const emptyParty = { name: '', type: 'supplier' as const, gstNumber: '', contact: '', email: '', address: '' };
+const emptyParty = { name: '', type: 'supplier' as Party['type'], gstNumber: '', contact: '', email: '', address: '' };
 
 export default function PartyMasterPage() {
   const [parties, setParties] = useState<Party[]>(initialParties);
