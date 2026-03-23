@@ -14,13 +14,13 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   searchPlaceholder?: string;
-  searchKey?: string;
+  searchKey?: keyof T & string;
   pageSize?: number;
   onRowClick?: (row: T) => void;
   actions?: (row: T) => React.ReactNode;
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
+export default function DataTable<T>({
   columns,
   data,
   searchPlaceholder = 'Search...',
@@ -33,7 +33,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   const [page, setPage] = useState(1);
 
   const filtered = searchKey
-    ? data.filter((row) => String(row[searchKey] ?? '').toLowerCase().includes(search.toLowerCase()))
+    ? data.filter((row) => String((row as Record<string, unknown>)[searchKey] ?? '').toLowerCase().includes(search.toLowerCase()))
     : data;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -78,7 +78,7 @@ export default function DataTable<T extends Record<string, unknown>>({
                   >
                     {columns.map((col) => (
                       <td key={col.key} className={`px-4 py-3 ${col.className || ''}`}>
-                        {col.render ? col.render(row) : String(row[col.key] ?? '')}
+                        {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
                       </td>
                     ))}
                     {actions && (
