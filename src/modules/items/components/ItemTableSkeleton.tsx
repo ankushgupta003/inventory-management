@@ -7,7 +7,7 @@ export default function ItemTableSkeleton() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 border-b">
-              {Array.from({ length: 9 }).map((_, i) => (
+              {Array.from({ length: 7 }).map((_, i) => (
                 <th key={i} className="px-4 py-3"><Skeleton className="h-4 w-20" /></th>
               ))}
             </tr>
@@ -15,7 +15,7 @@ export default function ItemTableSkeleton() {
           <tbody>
             {Array.from({ length: 5 }).map((_, row) => (
               <tr key={row} className="border-b">
-                {Array.from({ length: 9 }).map((_, col) => (
+                {Array.from({ length: 7 }).map((_, col) => (
                   <td key={col} className="px-4 py-3"><Skeleton className="h-4 w-full" /></td>
                 ))}
               </tr>

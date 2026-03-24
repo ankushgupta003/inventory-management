@@ -26,7 +26,14 @@ export default function ItemMasterPage() {
       updateItem(editingItem.id, values);
       toast.success('Item updated successfully');
     } else {
-      addItem(values as Omit<ItemRecord, 'id' | 'currentStock' | 'createdAt'>);
+      addItem({
+        ...values,
+        sku: values.sku || '',
+        tallyUnit: values.tallyUnit || '',
+        hsnCode: values.hsnCode || '',
+        gstEffectiveFrom: values.gstEffectiveFrom || '',
+        isActive: values.isActive,
+      } as Omit<ItemRecord, 'id' | 'createdAt'>);
       toast.success('Item created successfully');
     }
     setModalOpen(false);
@@ -40,28 +47,15 @@ export default function ItemMasterPage() {
     }
   };
 
-  const hasFilters = filters.search !== '' || filters.type !== 'all' || filters.status !== 'all';
+  const hasFilters = filters.search !== '' || filters.status !== 'all';
 
   const columns = [
     { key: 'storeName', header: 'Store Name', render: (r: ItemRecord) => <span className="font-medium">{r.storeName}</span> },
     { key: 'tallyName', header: 'Tally Name', render: (r: ItemRecord) => <span className="font-mono text-xs text-muted-foreground">{r.tallyName}</span> },
-    { key: 'type', header: 'Type', render: (r: ItemRecord) => (
-      <StatusBadge status={r.type === 'raw_material' ? 'info' : 'success'} label={r.type === 'raw_material' ? 'Raw Material' : 'Finished Good'} />
-    )},
-    { key: 'baseUnit', header: 'Base Unit', render: (r: ItemRecord) => (
-      <span className="uppercase text-xs">{r.baseUnit}{r.conversionEnabled && r.alternateUnit ? ` → ${r.alternateUnit}` : ''}</span>
-    )},
-    { key: 'conversionFactor', header: 'Conversion', render: (r: ItemRecord) => (
-      r.conversionEnabled && r.conversionFactor
-        ? <span className="text-xs">1 {r.alternateUnit} = {r.conversionFactor} {r.baseUnit}</span>
-        : <span className="text-xs text-muted-foreground">—</span>
-    )},
-    { key: 'purchaseRate', header: 'Purchase ₹', render: (r: ItemRecord) => r.purchaseRate > 0 ? `₹${r.purchaseRate.toLocaleString('en-IN')}` : '—' },
-    { key: 'sellingRate', header: 'Selling ₹', render: (r: ItemRecord) => r.sellingRate > 0 ? `₹${r.sellingRate.toLocaleString('en-IN')}` : '—' },
-    { key: 'taxPercent', header: 'Tax %', render: (r: ItemRecord) => `${r.taxPercent}%` },
-    { key: 'currentStock', header: 'Stock', render: (r: ItemRecord) => (
-      <span className={r.currentStock === 0 ? 'text-destructive font-medium' : ''}>{r.currentStock} {r.baseUnit}</span>
-    )},
+    { key: 'sku', header: 'SKU', render: (r: ItemRecord) => r.sku ? <span className="text-xs">{r.sku}</span> : <span className="text-xs text-muted-foreground">—</span> },
+    { key: 'baseUnit', header: 'Unit', render: (r: ItemRecord) => <span className="uppercase text-xs">{r.baseUnit}</span> },
+    { key: 'tallyUnit', header: 'Tally Unit', render: (r: ItemRecord) => r.tallyUnit ? <span className="text-xs">{r.tallyUnit}</span> : <span className="text-xs text-muted-foreground">—</span> },
+    { key: 'gstRate', header: 'GST %', render: (r: ItemRecord) => `${r.gstRate}%` },
     { key: 'isActive', header: 'Status', render: (r: ItemRecord) => (
       <StatusBadge status={r.isActive ? 'success' : 'warning'} label={r.isActive ? 'Active' : 'Inactive'} />
     )},
@@ -82,7 +76,7 @@ export default function ItemMasterPage() {
       {items.length === 0 ? (
         <EmptyState
           hasFilters={hasFilters}
-          onClear={() => setFilters({ search: '', type: 'all', status: 'all' })}
+          onClear={() => setFilters({ search: '', status: 'all' })}
           onCreate={openCreate}
         />
       ) : (

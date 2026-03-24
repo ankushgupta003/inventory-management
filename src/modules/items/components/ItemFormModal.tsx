@@ -1,20 +1,19 @@
 import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { itemFormSchema, defaultItemValues, type ItemFormValues } from '../schemas/itemSchema';
 import type { ItemRecord } from '../types';
 
 const UNITS = [
   { value: 'kg', label: 'Kilogram (kg)' },
   { value: 'pcs', label: 'Pieces (pcs)' },
+  { value: 'nos', label: 'Numbers (nos)' },
   { value: 'ltr', label: 'Litre (ltr)' },
   { value: 'mtr', label: 'Metre (mtr)' },
   { value: 'set', label: 'Set' },
@@ -45,9 +44,8 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
     defaultValues: defaultItemValues,
   });
 
-  const conversionEnabled = watch('conversionEnabled');
   const baseUnit = watch('baseUnit');
-  const alternateUnit = watch('alternateUnit');
+  const tallyUnit = watch('tallyUnit');
   const conversionFactor = watch('conversionFactor');
 
   useEffect(() => {
@@ -55,15 +53,13 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
       reset(editingItem ? {
         storeName: editingItem.storeName,
         tallyName: editingItem.tallyName,
-        type: editingItem.type,
+        sku: editingItem.sku || '',
         baseUnit: editingItem.baseUnit,
-        conversionEnabled: editingItem.conversionEnabled,
-        alternateUnit: editingItem.alternateUnit || '',
+        tallyUnit: editingItem.tallyUnit || '',
         conversionFactor: editingItem.conversionFactor,
-        purchaseRate: editingItem.purchaseRate,
-        sellingRate: editingItem.sellingRate,
-        hsnCode: editingItem.hsnCode,
-        taxPercent: editingItem.taxPercent,
+        hsnCode: editingItem.hsnCode || '',
+        gstRate: editingItem.gstRate,
+        gstEffectiveFrom: editingItem.gstEffectiveFrom || '',
         isActive: editingItem.isActive,
       } : defaultItemValues);
     }
@@ -73,8 +69,8 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
     onSave(values);
   };
 
-  const altUnitLabel = UNITS.find((u) => u.value === alternateUnit)?.label?.split(' ')[0] || alternateUnit || 'alt unit';
-  const baseUnitLabel = UNITS.find((u) => u.value === baseUnit)?.label?.split(' ')[0] || baseUnit || 'base unit';
+  const baseLabel = UNITS.find((u) => u.value === baseUnit)?.label?.split(' (')[0] || baseUnit;
+  const tallyLabel = tallyUnit || 'tally unit';
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -94,26 +90,24 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
                 {errors.storeName && <p className="text-xs text-destructive">{errors.storeName.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="tallyName">Tally Name <span className="text-destructive">*</span></Label>
+                <Label htmlFor="tallyName">Tally Item Name <span className="text-destructive">*</span></Label>
                 <Input id="tallyName" {...register('tallyName')} placeholder="e.g. STEEL-ROD-10" />
                 {errors.tallyName && <p className="text-xs text-destructive">{errors.tallyName.message}</p>}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="sku">SKU</Label>
+              <Input id="sku" {...register('sku')} placeholder="e.g. SR-10MM (optional, must be unique)" />
+              {errors.sku && <p className="text-xs text-destructive">{errors.sku.message}</p>}
+            </div>
+          </fieldset>
+
+          {/* SECTION 2: Units */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Units</legend>
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label>Item Type</Label>
-                <Controller name="type" control={control} render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="raw_material">Raw Material</SelectItem>
-                      <SelectItem value="finished_good">Finished Good</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Base Unit</Label>
+                <Label>Base Unit <span className="text-destructive">*</span></Label>
                 <Controller name="baseUnit" control={control} render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -123,92 +117,44 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
                   </Select>
                 )} />
               </div>
-            </div>
-          </fieldset>
-
-          {/* SECTION 2: Unit Conversion */}
-          <fieldset className="space-y-4">
-            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              Unit Conversion
-              <Tooltip>
-                <TooltipTrigger type="button">
-                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-xs text-xs">
-                  Enable this to define an alternate unit with a conversion factor. Useful when you buy in one unit and sell/use in another.
-                </TooltipContent>
-              </Tooltip>
-            </legend>
-            <div className="flex items-center gap-3">
-              <Controller name="conversionEnabled" control={control} render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} id="conversionEnabled" />
-              )} />
-              <Label htmlFor="conversionEnabled" className="text-sm cursor-pointer">Enable unit conversion</Label>
-            </div>
-            {conversionEnabled && (
-              <div className="grid grid-cols-2 gap-4 pl-1 border-l-2 border-primary/20 ml-1">
-                <div className="space-y-1.5 pl-3">
-                  <Label>Alternate Unit</Label>
-                  <Controller name="alternateUnit" control={control} render={({ field }) => (
-                    <Select value={field.value || ''} onValueChange={field.onChange}>
-                      <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
-                      <SelectContent>
-                        {UNITS.filter((u) => u.value !== baseUnit).map((u) => (
-                          <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )} />
-                  {errors.alternateUnit && <p className="text-xs text-destructive">{errors.alternateUnit.message}</p>}
-                </div>
-                <div className="space-y-1.5 pl-3">
-                  <Label>Conversion Factor</Label>
-                  <Input type="number" step="any" {...register('conversionFactor')} placeholder="e.g. 10" />
-                  {errors.conversionFactor && <p className="text-xs text-destructive">{errors.conversionFactor.message}</p>}
-                </div>
-                {alternateUnit && conversionFactor && conversionFactor > 0 && (
-                  <p className="col-span-2 pl-3 text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-                    Example: 1 {altUnitLabel} = {conversionFactor} {baseUnitLabel}
-                  </p>
-                )}
+              <div className="space-y-1.5">
+                <Label htmlFor="tallyUnit">Tally Unit</Label>
+                <Input id="tallyUnit" {...register('tallyUnit')} placeholder="e.g. ton, nos" />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="conversionFactor">Conversion Factor</Label>
+                <Input id="conversionFactor" type="number" step="any" {...register('conversionFactor')} placeholder="e.g. 1000" />
+                {errors.conversionFactor && <p className="text-xs text-destructive">{errors.conversionFactor.message}</p>}
+              </div>
+            </div>
+            {tallyUnit && conversionFactor && conversionFactor > 0 && (
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
+                Conversion: 1 {tallyLabel} = {conversionFactor} {baseLabel}
+              </p>
             )}
           </fieldset>
 
-          {/* SECTION 3: Pricing */}
+          {/* SECTION 3: Tax */}
           <fieldset className="space-y-4">
-            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Pricing</legend>
-            <div className="grid grid-cols-2 gap-4">
+            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tax</legend>
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label>Purchase Rate (₹ / {baseUnitLabel})</Label>
-                <Input type="number" step="0.01" {...register('purchaseRate')} />
-                {errors.purchaseRate && <p className="text-xs text-destructive">{errors.purchaseRate.message}</p>}
+                <Label htmlFor="hsnCode">HSN Code</Label>
+                <Input id="hsnCode" {...register('hsnCode')} placeholder="e.g. 7214" />
               </div>
               <div className="space-y-1.5">
-                <Label>Selling Rate (₹ / {baseUnitLabel})</Label>
-                <Input type="number" step="0.01" {...register('sellingRate')} />
-                {errors.sellingRate && <p className="text-xs text-destructive">{errors.sellingRate.message}</p>}
+                <Label htmlFor="gstRate">GST Rate (%)</Label>
+                <Input id="gstRate" type="number" step="0.01" {...register('gstRate')} />
+                {errors.gstRate && <p className="text-xs text-destructive">{errors.gstRate.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="gstEffectiveFrom">GST Effective From</Label>
+                <Input id="gstEffectiveFrom" type="date" {...register('gstEffectiveFrom')} />
               </div>
             </div>
           </fieldset>
 
-          {/* SECTION 4: Tax & Codes */}
-          <fieldset className="space-y-4">
-            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tax & Codes</legend>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>HSN Code</Label>
-                <Input {...register('hsnCode')} placeholder="e.g. 7214" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Tax %</Label>
-                <Input type="number" step="0.01" {...register('taxPercent')} />
-                {errors.taxPercent && <p className="text-xs text-destructive">{errors.taxPercent.message}</p>}
-              </div>
-            </div>
-          </fieldset>
-
-          {/* SECTION 5: Status */}
+          {/* SECTION 4: Status */}
           <fieldset className="space-y-4">
             <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Status</legend>
             <div className="flex items-center gap-3">
