@@ -124,7 +124,7 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
               <div className="space-y-1.5">
                 <Label htmlFor="conversionFactor">Conversion Factor</Label>
                 <Input id="conversionFactor" type="number" step="any" {...register('conversionFactor')} placeholder="e.g. 1000" />
-                {errors.conversionFactor && <p className="text-xs text-destructive">{errors.conversionFactor.message}</p>}
+                {errors.conversionFactor && <p className="text-xs text-destructive">{String(errors.conversionFactor.message)}</p>}
               </div>
             </div>
             {tallyUnit && conversionFactor && conversionFactor > 0 && (
