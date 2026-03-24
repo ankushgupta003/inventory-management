@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
-import ItemMasterPage from "@/pages/ItemMasterPage";
+import { ItemMasterPage } from "@/modules/items";
 import PartyMasterPage from "@/pages/PartyMasterPage";
 import PurchasePage from "@/pages/PurchasePage";
 import MaterialIssuePage from "@/pages/MaterialIssuePage";
