@@ -10,7 +10,7 @@ import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import { ItemMasterPage } from "@/modules/items";
 import PartyMasterPage from "@/pages/PartyMasterPage";
-import PurchasePage from "@/pages/PurchasePage";
+import { GoodsInwardPage } from "@/modules/purchases";
 import MaterialIssuePage from "@/pages/MaterialIssuePage";
 import ProductionPage from "@/pages/ProductionPage";
 import ProformaInvoicePage from "@/pages/ProformaInvoicePage";
