@@ -24,6 +24,11 @@ const UNITS = [
   { value: 'bag', label: 'Bag' },
 ];
 
+const CATEGORIES = [
+  'Metal', 'Electrical', 'Packaging', 'Chemical', 'Spare Parts',
+  'Assembly', 'Consumable', 'Other',
+];
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -44,33 +49,23 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
     defaultValues: defaultItemValues,
   });
 
-  const baseUnit = watch('baseUnit');
-  const tallyUnit = watch('tallyUnit');
-  const conversionFactor = watch('conversionFactor');
-
   useEffect(() => {
     if (open) {
       reset(editingItem ? {
         storeName: editingItem.storeName,
         tallyName: editingItem.tallyName,
         sku: editingItem.sku || '',
+        itemType: editingItem.itemType,
+        category: editingItem.category || '',
         baseUnit: editingItem.baseUnit,
-        tallyUnit: editingItem.tallyUnit || '',
-        conversionFactor: editingItem.conversionFactor,
         hsnCode: editingItem.hsnCode || '',
         gstRate: editingItem.gstRate,
-        gstEffectiveFrom: editingItem.gstEffectiveFrom || '',
         isActive: editingItem.isActive,
       } : defaultItemValues);
     }
   }, [open, editingItem, reset]);
 
-  const onSubmit = (values: ItemFormValues) => {
-    onSave(values);
-  };
-
-  const baseLabel = UNITS.find((u) => u.value === baseUnit)?.label?.split(' (')[0] || baseUnit;
-  const tallyLabel = tallyUnit || 'tally unit';
+  const onSubmit = (values: ItemFormValues) => onSave(values);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -85,7 +80,7 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
             <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Basic Information</legend>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="storeName">Store Name <span className="text-destructive">*</span></Label>
+                <Label htmlFor="storeName">Store Item Name <span className="text-destructive">*</span></Label>
                 <Input id="storeName" {...register('storeName')} placeholder="e.g. Steel Rod 10mm" />
                 {errors.storeName && <p className="text-xs text-destructive">{errors.storeName.message}</p>}
               </div>
@@ -102,42 +97,58 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
             </div>
           </fieldset>
 
-          {/* SECTION 2: Units */}
+          {/* SECTION 2: Classification */}
           <fieldset className="space-y-4">
-            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Units</legend>
-            <div className="grid grid-cols-3 gap-4">
+            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Classification</legend>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Base Unit <span className="text-destructive">*</span></Label>
-                <Controller name="baseUnit" control={control} render={({ field }) => (
+                <Label>Item Type <span className="text-destructive">*</span></Label>
+                <Controller name="itemType" control={control} render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
-                      {UNITS.map((u) => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
+                      <SelectItem value="raw">Raw Material</SelectItem>
+                      <SelectItem value="finished">Finished Good</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )} />
+                {errors.itemType && <p className="text-xs text-destructive">{errors.itemType.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Controller name="category" control={control} render={({ field }) => (
+                  <Select value={field.value || '_none'} onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}>
+                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">None</SelectItem>
+                      {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )} />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tallyUnit">Tally Unit</Label>
-                <Input id="tallyUnit" {...register('tallyUnit')} placeholder="e.g. ton, nos" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="conversionFactor">Conversion Factor</Label>
-                <Input id="conversionFactor" type="number" step="any" {...register('conversionFactor')} placeholder="e.g. 1000" />
-                {errors.conversionFactor && <p className="text-xs text-destructive">{String(errors.conversionFactor.message)}</p>}
-              </div>
             </div>
-            {tallyUnit && conversionFactor && conversionFactor > 0 && (
-              <p className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-                Conversion: 1 {tallyLabel} = {conversionFactor} {baseLabel}
-              </p>
-            )}
           </fieldset>
 
-          {/* SECTION 3: Tax */}
+          {/* SECTION 3: Unit */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Unit</legend>
+            <div className="space-y-1.5">
+              <Label>Base Unit <span className="text-destructive">*</span></Label>
+              <Controller name="baseUnit" control={control} render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UNITS.map((u) => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )} />
+            </div>
+          </fieldset>
+
+          {/* SECTION 4: Tax */}
           <fieldset className="space-y-4">
             <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tax</legend>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="hsnCode">HSN Code</Label>
                 <Input id="hsnCode" {...register('hsnCode')} placeholder="e.g. 7214" />
@@ -147,14 +158,10 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
                 <Input id="gstRate" type="number" step="0.01" {...register('gstRate')} />
                 {errors.gstRate && <p className="text-xs text-destructive">{errors.gstRate.message}</p>}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="gstEffectiveFrom">GST Effective From</Label>
-                <Input id="gstEffectiveFrom" type="date" {...register('gstEffectiveFrom')} />
-              </div>
             </div>
           </fieldset>
 
-          {/* SECTION 4: Status */}
+          {/* SECTION 5: Status */}
           <fieldset className="space-y-4">
             <legend className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Status</legend>
             <div className="flex items-center gap-3">
