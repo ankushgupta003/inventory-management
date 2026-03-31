@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function ItemFiltersBar({ filters, onChange }: Props) {
-  const hasFilters = filters.status !== 'all' || filters.search.length > 0;
+  const hasFilters = filters.status !== 'all' || filters.itemType !== 'all' || filters.search.length > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -23,6 +23,14 @@ export default function ItemFiltersBar({ filters, onChange }: Props) {
           className="pl-9"
         />
       </div>
+      <Select value={filters.itemType} onValueChange={(v) => onChange({ ...filters, itemType: v as ItemFilters['itemType'] })}>
+        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Type" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Types</SelectItem>
+          <SelectItem value="raw">Raw Material</SelectItem>
+          <SelectItem value="finished">Finished Good</SelectItem>
+        </SelectContent>
+      </Select>
       <Select value={filters.status} onValueChange={(v) => onChange({ ...filters, status: v as ItemFilters['status'] })}>
         <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
         <SelectContent>
@@ -32,7 +40,7 @@ export default function ItemFiltersBar({ filters, onChange }: Props) {
         </SelectContent>
       </Select>
       {hasFilters && (
-        <Button variant="ghost" size="sm" onClick={() => onChange({ search: '', status: 'all' })}>
+        <Button variant="ghost" size="sm" onClick={() => onChange({ search: '', status: 'all', itemType: 'all' })}>
           <X className="h-3.5 w-3.5 mr-1" /> Clear
         </Button>
       )}

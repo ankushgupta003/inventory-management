@@ -1,14 +1,15 @@
+export type ItemType = 'raw' | 'finished';
+
 export interface ItemRecord {
   id: string;
   storeName: string;
   tallyName: string;
   sku: string;
+  itemType: ItemType;
+  category: string;
   baseUnit: string;
-  tallyUnit: string;
-  conversionFactor?: number;
   hsnCode: string;
   gstRate: number;
-  gstEffectiveFrom: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -16,4 +17,5 @@ export interface ItemRecord {
 export type ItemFilters = {
   search: string;
   status: 'all' | 'active' | 'inactive';
+  itemType: 'all' | ItemType;
 };
