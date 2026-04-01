@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, Users, ShoppingCart, ArrowRightLeft,
-  Factory, FileText, FileCheck, BarChart3, ChevronLeft, ChevronRight, Menu,
+  Factory, FileText, FileCheck, BarChart3, ChevronLeft, ChevronRight, Menu, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,7 @@ const navItems = [
   { title: 'Item Master', path: '/items', icon: Package },
   { title: 'Party Master', path: '/parties', icon: Users },
   { title: 'Purchase', path: '/purchases', icon: ShoppingCart },
+  { title: 'MRS', path: '/mrs', icon: ClipboardList },
   { title: 'Material Issue', path: '/material-issue', icon: ArrowRightLeft },
   { title: 'Production', path: '/production', icon: Factory },
   { title: 'Proforma Invoice', path: '/proforma-invoices', icon: FileText },

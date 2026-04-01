@@ -11,6 +11,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import { ItemMasterPage } from "@/modules/items";
 import { PartyMasterPage } from "@/modules/parties";
 import { GINListPage, GoodsInwardPage, GINViewPage } from "@/modules/purchases";
+import { MRSListPage, MRSCreatePage, MRSViewPage, MRSIssuePage } from "@/modules/mrs";
 import MaterialIssuePage from "@/pages/MaterialIssuePage";
 import ProductionPage from "@/pages/ProductionPage";
 import ProformaInvoicePage from "@/pages/ProformaInvoicePage";
@@ -37,6 +38,10 @@ const App = () => (
               <Route path="/purchases" element={<GINListPage />} />
               <Route path="/purchases/create" element={<GoodsInwardPage />} />
               <Route path="/purchases/:id" element={<GINViewPage />} />
+              <Route path="/mrs" element={<MRSListPage />} />
+              <Route path="/mrs/create" element={<MRSCreatePage />} />
+              <Route path="/mrs/:id" element={<MRSViewPage />} />
+              <Route path="/mrs/:id/issue" element={<MRSIssuePage />} />
               <Route path="/material-issue" element={<MaterialIssuePage />} />
               <Route path="/production" element={<ProductionPage />} />
               <Route path="/proforma-invoices" element={<ProformaInvoicePage />} />
