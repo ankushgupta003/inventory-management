@@ -11,7 +11,7 @@ const navItems = [
   { title: 'Item Master', path: '/items', icon: Package },
   { title: 'Party Master', path: '/parties', icon: Users },
   { title: 'Purchase', path: '/purchases', icon: ShoppingCart },
-  { title: 'MRS', path: '/mrs', icon: ArrowRightLeft },
+  { title: 'MRS', path: '/mrs', icon: ClipboardList },
   { title: 'Material Issue', path: '/material-issue', icon: ArrowRightLeft },
   { title: 'Production', path: '/production', icon: Factory },
   { title: 'Proforma Invoice', path: '/proforma-invoices', icon: FileText },
