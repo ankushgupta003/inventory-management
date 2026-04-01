@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, Users, ShoppingCart, ArrowRightLeft,
-  Factory, FileText, FileCheck, BarChart3, ChevronLeft, ChevronRight, Menu,
+  Factory, FileText, FileCheck, BarChart3, ChevronLeft, ChevronRight, Menu, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
