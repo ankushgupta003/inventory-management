@@ -9,7 +9,7 @@ import TableWrapper from '@/components/TableWrapper';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import api from '@/services/api';
+import api, { USE_MOCK } from '@/services/api';
 
 type DashboardKPI = {
   totalStockValue: number;
@@ -33,7 +33,7 @@ type DashboardResponse = {
   monthlySales: { month: string; amount: number }[];
 };
 
-const useMock = import.meta.env.DEV;
+const useMock = USE_MOCK || import.meta.env.DEV;
 
 const mockDashboard: DashboardResponse = {
   kpis: {
@@ -64,17 +64,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
+    if (useMock) {
+      setData(mockDashboard);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
     const load = async () => {
       try {
         const res = await api.get<DashboardResponse>('/dashboard').then((r) => r.data);
         if (!active) return;
-        if (useMock && (!res || !res.recentTransactions?.length)) {
-          setData(mockDashboard);
-        } else {
-          setData(res);
-        }
+        setData(res);
       } catch {
-        if (active) setData(useMock ? mockDashboard : null);
+        if (active) setData(null);
       } finally {
         if (active) setLoading(false);
       }
@@ -83,7 +86,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [useMock]);
 
   const kpis = useMemo(() => {
     if (!data) return [] as { title: string; value: string; icon: any; color: string }[];

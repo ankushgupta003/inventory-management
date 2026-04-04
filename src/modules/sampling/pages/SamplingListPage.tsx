@@ -12,10 +12,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { samplingApi } from '../services/samplingApi';
+import { USE_MOCK } from '@/services/api';
 import type { SamplingRecord } from '../types';
 
 const pageSize = 10;
-const useMock = import.meta.env.DEV;
+const useMock = USE_MOCK || import.meta.env.DEV;
 
 const mockSampling: SamplingRecord[] = [
   {
@@ -58,17 +59,16 @@ export default function SamplingListPage() {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      if (useMock) {
+        setRecords(mockSampling);
+        setLoading(false);
+        return;
+      }
       try {
         const data = await samplingApi.getAll();
-        if (active) {
-          if (useMock && data.length === 0) {
-            setRecords(mockSampling);
-          } else {
-            setRecords(data);
-          }
-        }
+        if (active) setRecords(data);
       } catch {
-        if (active) setRecords(useMock ? mockSampling : []);
+        if (active) setRecords([]);
       } finally {
         if (active) setLoading(false);
       }
@@ -77,7 +77,7 @@ export default function SamplingListPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [useMock]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

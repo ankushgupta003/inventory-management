@@ -16,10 +16,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { productionApi } from '../services/productionApi';
+import { USE_MOCK } from '@/services/api';
 import type { ProductionRecord } from '../types';
 
 const pageSize = 10;
-const useMock = import.meta.env.DEV;
+const useMock = USE_MOCK || import.meta.env.DEV;
 
 const mockProduction: ProductionRecord[] = [
   {
@@ -60,17 +61,16 @@ export default function ProductionListPage() {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      if (useMock) {
+        setRecords(mockProduction);
+        setLoading(false);
+        return;
+      }
       try {
         const data = await productionApi.getAll();
-        if (active) {
-          if (useMock && data.length === 0) {
-            setRecords(mockProduction);
-          } else {
-            setRecords(data);
-          }
-        }
+        if (active) setRecords(data);
       } catch {
-        if (active) setRecords(useMock ? mockProduction : []);
+        if (active) setRecords([]);
       } finally {
         if (active) setLoading(false);
       }
@@ -79,7 +79,7 @@ export default function ProductionListPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [useMock]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

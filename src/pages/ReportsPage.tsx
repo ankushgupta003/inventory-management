@@ -9,9 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import PageHeader from '@/components/PageHeader';
-import api from '@/services/api';
+import api, { USE_MOCK } from '@/services/api';
 
-const useMock = import.meta.env.DEV;
+const useMock = USE_MOCK || import.meta.env.DEV;
 const pageSize = 10;
 const COMPANY_NAME = 'Inventory Management Co.';
 
@@ -172,6 +172,16 @@ export default function ReportsPage() {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      if (useMock) {
+        setStockSummary(mockStockSummary);
+        setBatchReport(mockBatch);
+        setLedgerReport(mockLedger);
+        setPurchaseReport(mockPurchase);
+        setIssueReport(mockIssue);
+        setSalesReport(mockSales);
+        setPiReport(mockPIStatus);
+        return;
+      }
       try {
         const [stock, batch, ledger, purchase, issue, sales, pi] = await Promise.all([
           api.get<StockSummaryRow[]>('/reports/stock-summary').then((r) => r.data),
@@ -183,31 +193,29 @@ export default function ReportsPage() {
           api.get<PIStatusRow[]>('/reports/pi').then((r) => r.data),
         ]);
         if (!active) return;
-        setStockSummary(stock.length ? stock : (useMock ? mockStockSummary : []));
-        setBatchReport(batch.length ? batch : (useMock ? mockBatch : []));
-        setLedgerReport(ledger.length ? ledger : (useMock ? mockLedger : []));
-        setPurchaseReport(purchase.length ? purchase : (useMock ? mockPurchase : []));
-        setIssueReport(issue.length ? issue : (useMock ? mockIssue : []));
-        setSalesReport(sales.length ? sales : (useMock ? mockSales : []));
-        setPiReport(pi.length ? pi : (useMock ? mockPIStatus : []));
+        setStockSummary(stock);
+        setBatchReport(batch);
+        setLedgerReport(ledger);
+        setPurchaseReport(purchase);
+        setIssueReport(issue);
+        setSalesReport(sales);
+        setPiReport(pi);
       } catch {
         if (!active) return;
-        if (useMock) {
-          setStockSummary(mockStockSummary);
-          setBatchReport(mockBatch);
-          setLedgerReport(mockLedger);
-          setPurchaseReport(mockPurchase);
-          setIssueReport(mockIssue);
-          setSalesReport(mockSales);
-          setPiReport(mockPIStatus);
-        }
+        setStockSummary([]);
+        setBatchReport([]);
+        setLedgerReport([]);
+        setPurchaseReport([]);
+        setIssueReport([]);
+        setSalesReport([]);
+        setPiReport([]);
       }
     };
     load();
     return () => {
       active = false;
     };
-  }, []);
+  }, [useMock]);
 
   const filteredStock = useMemo(() => {
     const q = searchStock.trim().toLowerCase();
