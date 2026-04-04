@@ -13,6 +13,7 @@ const navItems = [
   { title: 'Purchase', path: '/purchases', icon: ShoppingCart },
   { title: 'MRS', path: '/mrs', icon: ClipboardList },
   { title: 'Material Issue', path: '/material-issue', icon: ArrowRightLeft },
+  { title: 'Stock Ledger', path: '/stock-ledger', icon: BookOpen },
   { title: 'Production', path: '/production', icon: Factory },
   { title: 'Proforma Invoice', path: '/proforma-invoices', icon: FileText },
   { title: 'Final Invoice', path: '/invoices', icon: FileCheck },
