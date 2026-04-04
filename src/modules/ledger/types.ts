@@ -7,6 +7,8 @@ export type TransactionType =
   | 'transfer'
   | 'sampling';
 
+export type ItemCategory = 'RAW' | 'FINISHED';
+
 export interface LedgerEntry {
   id: string;
   date: string;
@@ -14,6 +16,7 @@ export interface LedgerEntry {
   type: TransactionType;
   particulars: string;
   itemName: string;
+  itemCategory: ItemCategory;
   batchNo: string;
   mfgDate: string;
   expiryDate: string;

@@ -1,23 +1,20 @@
 import { useState, useMemo, useCallback } from 'react';
-import type { LedgerEntry, LedgerFilters, TransactionType } from '../types';
+import type { LedgerEntry, LedgerFilters, TransactionType, ItemCategory } from '../types';
 
 const MOCK_DATA: LedgerEntry[] = [
-  { id: '1', date: '2025-04-01', referenceNo: 'GIN-001', type: 'purchase', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Sodium Chloride', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 500, issueQty: 0, rate: 45, remarks: 'Initial purchase' },
-  { id: '2', date: '2025-04-03', referenceNo: 'MRS-001', type: 'issue', particulars: 'Production Dept', itemName: 'Sodium Chloride', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 0, issueQty: 100, rate: 45, remarks: 'For Batch P-101' },
-  { id: '3', date: '2025-04-03', referenceNo: 'PRD-001', type: 'production', particulars: 'Production Output', itemName: 'Finished Product A', batchNo: 'FP-001', mfgDate: '2025-04-03', expiryDate: '2027-04-03', receiptQty: 80, issueQty: 0, rate: 120, remarks: 'Batch P-101' },
-  { id: '4', date: '2025-04-05', referenceNo: 'GIN-002', type: 'purchase', particulars: 'XYZ Supplies', itemName: 'Sodium Chloride', batchNo: 'B-2025-002', mfgDate: '2025-04-01', expiryDate: '2027-04-01', receiptQty: 300, issueQty: 0, rate: 47, remarks: '' },
-  { id: '5', date: '2025-04-06', referenceNo: 'INV-001', type: 'invoice', particulars: 'Customer Corp', itemName: 'Finished Product A', batchNo: 'FP-001', mfgDate: '2025-04-03', expiryDate: '2027-04-03', receiptQty: 0, issueQty: 30, rate: 200, remarks: 'Sales' },
-  { id: '6', date: '2025-04-07', referenceNo: 'RET-001', type: 'return', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Sodium Chloride', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 0, issueQty: 20, rate: 45, remarks: 'Rejected lot returned' },
-  { id: '7', date: '2025-04-08', referenceNo: 'SMP-001', type: 'sampling', particulars: 'QC Lab', itemName: 'Sodium Chloride', batchNo: 'B-2025-002', mfgDate: '2025-04-01', expiryDate: '2027-04-01', receiptQty: 0, issueQty: 5, rate: 47, remarks: 'Quality testing' },
-  { id: '8', date: '2025-04-10', referenceNo: 'TRF-001', type: 'transfer', particulars: 'Warehouse B → Warehouse A', itemName: 'Sodium Chloride', batchNo: 'B-2025-002', mfgDate: '2025-04-01', expiryDate: '2027-04-01', receiptQty: 0, issueQty: 0, rate: 47, remarks: 'Internal transfer log' },
-  { id: '9', date: '2025-04-12', referenceNo: 'MRS-002', type: 'issue', particulars: 'R&D Dept', itemName: 'Sodium Chloride', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 0, issueQty: 50, rate: 45, remarks: 'Testing' },
-  { id: '10', date: '2025-04-15', referenceNo: 'GIN-003', type: 'purchase', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Citric Acid', batchNo: 'CA-001', mfgDate: '2025-04-10', expiryDate: '2026-04-10', receiptQty: 200, issueQty: 0, rate: 85, remarks: '' },
-  { id: '11', date: '2025-04-16', referenceNo: 'MRS-003', type: 'issue', particulars: 'Production Dept', itemName: 'Citric Acid', batchNo: 'CA-001', mfgDate: '2025-04-10', expiryDate: '2026-04-10', receiptQty: 0, issueQty: 60, rate: 85, remarks: '' },
-  { id: '12', date: '2025-04-18', referenceNo: 'PRD-002', type: 'production', particulars: 'Production Output', itemName: 'Finished Product B', batchNo: 'FP-002', mfgDate: '2025-04-18', expiryDate: '2027-04-18', receiptQty: 50, issueQty: 0, rate: 180, remarks: '' },
+  { id: '1', date: '2025-04-01', referenceNo: 'GIN-001', type: 'purchase', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 500, issueQty: 0, rate: 45, remarks: 'Initial purchase' },
+  { id: '2', date: '2025-04-03', referenceNo: 'MRS-001', type: 'issue', particulars: 'Production Dept', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 0, issueQty: 100, rate: 45, remarks: 'For Batch P-101' },
+  { id: '3', date: '2025-04-03', referenceNo: 'PRD-001', type: 'production', particulars: 'Production Output', itemName: 'Finished Product A', itemCategory: 'FINISHED', batchNo: 'FP-001', mfgDate: '2025-04-03', expiryDate: '2027-04-03', receiptQty: 80, issueQty: 0, rate: 120, remarks: 'Batch P-101' },
+  { id: '4', date: '2025-04-05', referenceNo: 'GIN-002', type: 'purchase', particulars: 'XYZ Supplies', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-002', mfgDate: '2025-04-01', expiryDate: '2027-04-01', receiptQty: 300, issueQty: 0, rate: 47, remarks: '' },
+  { id: '5', date: '2025-04-06', referenceNo: 'INV-001', type: 'invoice', particulars: 'Customer Corp', itemName: 'Finished Product A', itemCategory: 'FINISHED', batchNo: 'FP-001', mfgDate: '2025-04-03', expiryDate: '2027-04-03', receiptQty: 0, issueQty: 30, rate: 200, remarks: 'Sales' },
+  { id: '6', date: '2025-04-07', referenceNo: 'RET-001', type: 'return', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 0, issueQty: 20, rate: 45, remarks: 'Rejected lot returned' },
+  { id: '7', date: '2025-04-08', referenceNo: 'SMP-001', type: 'sampling', particulars: 'QC Lab', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-002', mfgDate: '2025-04-01', expiryDate: '2027-04-01', receiptQty: 0, issueQty: 5, rate: 47, remarks: 'Quality testing' },
+  { id: '8', date: '2025-04-10', referenceNo: 'TRF-001', type: 'transfer', particulars: 'Warehouse B → Warehouse A', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-002', mfgDate: '2025-04-01', expiryDate: '2027-04-01', receiptQty: 0, issueQty: 0, rate: 47, remarks: 'Internal transfer log' },
+  { id: '9', date: '2025-04-12', referenceNo: 'MRS-002', type: 'issue', particulars: 'R&D Dept', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 0, issueQty: 50, rate: 45, remarks: 'Testing' },
+  { id: '10', date: '2025-04-15', referenceNo: 'GIN-003', type: 'purchase', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Citric Acid', itemCategory: 'RAW', batchNo: 'CA-001', mfgDate: '2025-04-10', expiryDate: '2026-04-10', receiptQty: 200, issueQty: 0, rate: 85, remarks: '' },
+  { id: '11', date: '2025-04-16', referenceNo: 'MRS-003', type: 'issue', particulars: 'Production Dept', itemName: 'Citric Acid', itemCategory: 'RAW', batchNo: 'CA-001', mfgDate: '2025-04-10', expiryDate: '2026-04-10', receiptQty: 0, issueQty: 60, rate: 85, remarks: '' },
+  { id: '12', date: '2025-04-18', referenceNo: 'PRD-002', type: 'production', particulars: 'Production Output', itemName: 'Finished Product B', itemCategory: 'FINISHED', batchNo: 'FP-002', mfgDate: '2025-04-18', expiryDate: '2027-04-18', receiptQty: 50, issueQty: 0, rate: 180, remarks: '' },
 ];
-
-const ITEMS = ['Sodium Chloride', 'Finished Product A', 'Citric Acid', 'Finished Product B'];
-const BATCHES = ['B-2025-001', 'B-2025-002', 'FP-001', 'FP-002', 'CA-001'];
 
 const defaultFilters: LedgerFilters = {
   itemId: 'all',
@@ -27,13 +24,18 @@ const defaultFilters: LedgerFilters = {
   type: 'all',
 };
 
-export function useLedger() {
+export function useLedger(category: ItemCategory) {
   const [filters, setFilters] = useState<LedgerFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
+  const categoryData = useMemo(() => MOCK_DATA.filter((e) => e.itemCategory === category), [category]);
+
+  const items = useMemo(() => [...new Set(categoryData.map((e) => e.itemName))], [categoryData]);
+  const batches = useMemo(() => [...new Set(categoryData.map((e) => e.batchNo))], [categoryData]);
+
   const filtered = useMemo(() => {
-    let data = [...MOCK_DATA];
+    let data = [...categoryData];
     if (filters.itemId !== 'all') data = data.filter((e) => e.itemName === filters.itemId);
     if (filters.batchNo !== 'all') data = data.filter((e) => e.batchNo === filters.batchNo);
     if (filters.type !== 'all') data = data.filter((e) => e.type === filters.type);
@@ -41,7 +43,7 @@ export function useLedger() {
     if (filters.dateTo) data = data.filter((e) => e.date <= filters.dateTo);
     data.sort((a, b) => a.date.localeCompare(b.date) || a.itemName.localeCompare(b.itemName) || a.batchNo.localeCompare(b.batchNo));
     return data;
-  }, [filters]);
+  }, [categoryData, filters]);
 
   const withBalance = useMemo(() => {
     const balances: Record<string, number> = {};
@@ -80,7 +82,7 @@ export function useLedger() {
     page,
     setPage,
     totalPages,
-    items: ITEMS,
-    batches: BATCHES,
+    items,
+    batches,
   };
 }
