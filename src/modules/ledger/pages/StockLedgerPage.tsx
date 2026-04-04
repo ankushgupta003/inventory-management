@@ -1,12 +1,13 @@
-import { useRef } from 'react';
-import { Printer, RotateCcw, Filter } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Printer, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useLedger } from '../hooks/useLedger';
-import type { TransactionType } from '../types';
+import type { TransactionType, ItemCategory } from '../types';
 
 const TYPE_LABELS: Record<TransactionType, string> = {
   purchase: 'Purchase',
@@ -34,28 +35,19 @@ function isExpiryNear(expiryDate: string) {
   return diff > 0 && diff < 90 * 24 * 60 * 60 * 1000;
 }
 
-export default function StockLedgerPage() {
+const TAB_LABELS: Record<ItemCategory, string> = {
+  RAW: 'Raw Material Ledger',
+  FINISHED: 'Finished Goods Ledger',
+};
+
+function LedgerTable({ category }: { category: ItemCategory }) {
   const {
     entries, totalEntries, filters, applyFilters, resetFilters,
     page, setPage, totalPages, items, batches,
-  } = useLedger();
-  const tableRef = useRef<HTMLDivElement>(null);
-
-  const handlePrint = () => window.print();
+  } = useLedger(category);
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Stock Ledger</h1>
-          <p className="text-sm text-muted-foreground">{totalEntries} entries</p>
-        </div>
-        <Button onClick={handlePrint} variant="outline" className="gap-2">
-          <Printer className="h-4 w-4" /> Print Ledger
-        </Button>
-      </div>
-
       {/* Filters */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4 border border-border rounded-lg bg-card print:hidden">
         <Select value={filters.itemId} onValueChange={(v) => applyFilters({ itemId: v })}>
@@ -90,14 +82,10 @@ export default function StockLedgerPage() {
         </Button>
       </div>
 
-      {/* Print Header */}
-      <div className="hidden print:block text-center mb-4">
-        <h1 className="text-xl font-bold">Stock Ledger</h1>
-        <p className="text-sm">Generated on {new Date().toLocaleDateString('en-IN')}</p>
-      </div>
+      <p className="text-sm text-muted-foreground print:hidden">{totalEntries} entries</p>
 
       {/* Table */}
-      <div ref={tableRef} className="border border-border rounded-lg overflow-auto max-h-[calc(100vh-280px)] print:max-h-none print:overflow-visible">
+      <div className="border border-border rounded-lg overflow-auto max-h-[calc(100vh-340px)] print:max-h-none print:overflow-visible">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-muted print:bg-transparent">
             <TableRow className="border-b-2 border-border">
@@ -183,6 +171,44 @@ export default function StockLedgerPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+export default function StockLedgerPage() {
+  const [activeTab, setActiveTab] = useState<ItemCategory>('RAW');
+
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between print:hidden">
+        <h1 className="text-2xl font-bold text-foreground">Stock Ledger</h1>
+        <Button onClick={handlePrint} variant="outline" className="gap-2">
+          <Printer className="h-4 w-4" /> Print Ledger
+        </Button>
+      </div>
+
+      {/* Print Header */}
+      <div className="hidden print:block text-center mb-4">
+        <h1 className="text-xl font-bold">{TAB_LABELS[activeTab]}</h1>
+        <p className="text-sm">Generated on {new Date().toLocaleDateString('en-IN')}</p>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ItemCategory)}>
+        <TabsList className="print:hidden">
+          <TabsTrigger value="RAW">Raw Material</TabsTrigger>
+          <TabsTrigger value="FINISHED">Finished Goods</TabsTrigger>
+        </TabsList>
+        <TabsContent value="RAW">
+          <LedgerTable category="RAW" />
+        </TabsContent>
+        <TabsContent value="FINISHED">
+          <LedgerTable category="FINISHED" />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
