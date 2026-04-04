@@ -12,6 +12,7 @@ import { ItemMasterPage } from "@/modules/items";
 import { PartyMasterPage } from "@/modules/parties";
 import { GINListPage, GoodsInwardPage, GINViewPage } from "@/modules/purchases";
 import { MRSListPage, MRSCreatePage, MRSViewPage, MRSIssuePage } from "@/modules/mrs";
+import { StockLedgerPage } from "@/modules/ledger";
 import MaterialIssuePage from "@/pages/MaterialIssuePage";
 import ProductionPage from "@/pages/ProductionPage";
 import ProformaInvoicePage from "@/pages/ProformaInvoicePage";
