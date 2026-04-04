@@ -1,94 +1,171 @@
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Package, Layers, Box, FileText, Factory, DollarSign, AlertTriangle, Clock,
+  Wallet, Boxes, AlertTriangle, Clock, PackageCheck,
 } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import KPICard from '@/components/KPICard';
-import StatusBadge from '@/components/StatusBadge';
+import PageHeader from '@/components/PageHeader';
+import TableWrapper from '@/components/TableWrapper';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import api from '@/services/api';
 
-const kpis = [
-  { title: 'Total Stock', value: '12,450', icon: Package, color: 'bg-kpi-blue' },
-  { title: 'Raw Materials', value: '8,230', icon: Layers, color: 'bg-kpi-green' },
-  { title: 'Finished Goods', value: '4,220', icon: Box, color: 'bg-kpi-purple' },
-  { title: 'Pending PI', value: '18', icon: FileText, color: 'bg-kpi-orange' },
-  { title: "Today's Production", value: '340', icon: Factory, color: 'bg-kpi-teal' },
-  { title: "Today's Sales", value: '₹2.4L', icon: DollarSign, color: 'bg-kpi-red' },
-];
+type DashboardKPI = {
+  totalStockValue: number;
+  totalStockQty: number;
+  lowStockCount: number;
+  expiringSoonCount: number;
+};
 
-const recentActivities = [
-  { id: 1, action: 'Purchase entry created', user: 'Manager', time: '10 min ago', status: 'success' as const },
-  { id: 2, action: 'Production batch #1042 completed', user: 'Staff', time: '25 min ago', status: 'completed' as const },
-  { id: 3, action: 'PI #2084 sent to ABC Corp', user: 'Admin', time: '1 hr ago', status: 'pending' as const },
-  { id: 4, action: 'Material issued for testing', user: 'Staff', time: '2 hrs ago', status: 'info' as const },
-  { id: 5, action: 'Low stock alert: Steel Rods', user: 'System', time: '3 hrs ago', status: 'warning' as const },
-];
+type RecentTransaction = {
+  id: string;
+  date: string;
+  type: 'GIN' | 'Issue' | 'Invoice' | 'Production';
+  itemName: string;
+  qty: number;
+  batchNo: string;
+};
 
-const lowStockItems = [
-  { name: 'Steel Rods (10mm)', current: 45, minimum: 100, unit: 'kg' },
-  { name: 'Copper Wire', current: 12, minimum: 50, unit: 'kg' },
-  { name: 'Packing Boxes (Large)', current: 30, minimum: 100, unit: 'pcs' },
-  { name: 'Lubricant Oil', current: 5, minimum: 20, unit: 'ltr' },
-];
+type DashboardResponse = {
+  kpis: DashboardKPI;
+  recentTransactions: RecentTransaction[];
+  monthlySales: { month: string; amount: number }[];
+};
+
+const useMock = import.meta.env.DEV;
+
+const mockDashboard: DashboardResponse = {
+  kpis: {
+    totalStockValue: 2450000,
+    totalStockQty: 12850,
+    lowStockCount: 6,
+    expiringSoonCount: 4,
+  },
+  recentTransactions: [
+    { id: 't1', date: '2026-04-03', type: 'GIN', itemName: 'Steel Rod 10mm', qty: 200, batchNo: 'B-2026-010' },
+    { id: 't2', date: '2026-04-03', type: 'Issue', itemName: 'Copper Wire 2mm', qty: 25, batchNo: 'B-2026-002' },
+    { id: 't3', date: '2026-04-02', type: 'Production', itemName: 'Motor Assembly A1', qty: 120, batchNo: 'FG-240401-01' },
+    { id: 't4', date: '2026-04-02', type: 'Invoice', itemName: 'Gear Box GB-200', qty: 20, batchNo: 'FG-240402-02' },
+  ],
+  monthlySales: [
+    { month: 'Jan', amount: 320000 },
+    { month: 'Feb', amount: 420000 },
+    { month: 'Mar', amount: 380000 },
+    { month: 'Apr', amount: 510000 },
+    { month: 'May', amount: 460000 },
+    { month: 'Jun', amount: 620000 },
+  ],
+};
 
 export default function DashboardPage() {
+  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await api.get<DashboardResponse>('/dashboard').then((r) => r.data);
+        if (!active) return;
+        if (useMock && (!res || !res.recentTransactions?.length)) {
+          setData(mockDashboard);
+        } else {
+          setData(res);
+        }
+      } catch {
+        if (active) setData(useMock ? mockDashboard : null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const kpis = useMemo(() => {
+    if (!data) return [] as { title: string; value: string; icon: any; color: string }[];
+    return [
+      { title: 'Total Stock Value', value: `?${data.kpis.totalStockValue.toLocaleString('en-IN')}`, icon: Wallet, color: 'bg-kpi-blue' },
+      { title: 'Total Stock Quantity', value: data.kpis.totalStockQty.toLocaleString('en-IN'), icon: Boxes, color: 'bg-kpi-green' },
+      { title: 'Low Stock Items', value: data.kpis.lowStockCount.toString(), icon: AlertTriangle, color: 'bg-kpi-orange' },
+      { title: 'Expiring Soon', value: data.kpis.expiringSoonCount.toString(), icon: Clock, color: 'bg-kpi-red' },
+    ];
+  }, [data]);
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="erp-page-header">Dashboard</h1>
+      <PageHeader
+        title="Dashboard"
+        breadcrumbs={[{ label: 'Dashboard' }]}
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <KPICard key={kpi.title} {...kpi} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activities */}
-        <div className="lg:col-span-2 erp-section">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold text-foreground">Recent Activities</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">Action</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">User</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">Time</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentActivities.map((a) => (
-                  <tr key={a.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="py-2.5 px-3 text-foreground">{a.action}</td>
-                    <td className="py-2.5 px-3 text-muted-foreground">{a.user}</td>
-                    <td className="py-2.5 px-3 text-muted-foreground">{a.time}</td>
-                    <td className="py-2.5 px-3"><StatusBadge status={a.status} /></td>
-                  </tr>
+        <div className="lg:col-span-2">
+          <TableWrapper title="Recent Transactions" description="Latest inventory movements">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[110px]">Date</TableHead>
+                  <TableHead className="min-w-[120px]">Type</TableHead>
+                  <TableHead className="min-w-[180px]">Item</TableHead>
+                  <TableHead className="min-w-[100px] text-right">Qty</TableHead>
+                  <TableHead className="min-w-[140px]">Batch</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">Loading...</TableCell>
+                  </TableRow>
+                )}
+                {!loading && (!data || data.recentTransactions.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">No transactions found.</TableCell>
+                  </TableRow>
+                )}
+                {data?.recentTransactions.map((tx) => (
+                  <TableRow key={tx.id}>
+                    <TableCell>{tx.date}</TableCell>
+                    <TableCell>{tx.type}</TableCell>
+                    <TableCell className="font-medium">{tx.itemName}</TableCell>
+                    <TableCell className="text-right">{tx.qty}</TableCell>
+                    <TableCell className="font-mono text-xs">{tx.batchNo}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableWrapper>
         </div>
 
-        {/* Low Stock Alerts */}
-        <div className="erp-section">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <h2 className="font-semibold text-foreground">Low Stock Alerts</h2>
-          </div>
-          <div className="space-y-3">
-            {lowStockItems.map((item) => (
-              <div key={item.name} className="flex items-center justify-between p-3 bg-destructive/5 border border-destructive/10 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">Min: {item.minimum} {item.unit}</p>
-                </div>
-                <span className="text-sm font-bold text-destructive">{item.current} {item.unit}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card className="rounded-xl shadow-sm">
+          <CardHeader className="flex items-center gap-2">
+            <PackageCheck className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-lg font-medium">Monthly Sales</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{ amount: { label: 'Sales', color: 'hsl(var(--primary))' } }}
+              className="h-56"
+            >
+              <BarChart data={data?.monthlySales || []}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} width={36} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="amount" fill="var(--color-amount)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

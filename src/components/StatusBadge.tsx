@@ -1,6 +1,15 @@
 import { cn } from '@/lib/utils';
 
-type StatusVariant = 'pending' | 'partial' | 'completed' | 'closed' | 'success' | 'warning' | 'error' | 'info' | 'default';
+type StatusVariant =
+  | 'pending'
+  | 'partial'
+  | 'completed'
+  | 'closed'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'info'
+  | 'default';
 
 const variantStyles: Record<StatusVariant, string> = {
   pending: 'bg-warning/15 text-warning border-warning/30',
@@ -22,7 +31,13 @@ interface StatusBadgeProps {
 
 export default function StatusBadge({ status, label, className }: StatusBadgeProps) {
   return (
-    <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize', variantStyles[status] || variantStyles.default, className)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize',
+        variantStyles[status] || variantStyles.default,
+        className,
+      )}
+    >
       {label || status}
     </span>
   );

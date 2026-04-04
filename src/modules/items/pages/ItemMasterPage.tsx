@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import DataTable from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import PageHeader from '@/components/PageHeader';
+import TableWrapper from '@/components/TableWrapper';
+import FormSection from '@/components/FormSection';
 import ItemFormModal from '../components/ItemFormModal';
 import ItemFiltersBar from '../components/ItemFiltersBar';
 import EmptyState from '../components/EmptyState';
@@ -14,7 +17,7 @@ import type { ItemFormValues } from '../schemas/itemSchema';
 import { toast } from 'sonner';
 
 export default function ItemMasterPage() {
-  const { items, allItems, filters, setFilters, addItem, updateItem, toggleStatus, deleteItem } = useItems();
+  const { items, allItems, filters, setFilters, addItem, updateItem, toggleStatus } = useItems();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemRecord | null>(null);
   const [toggleId, setToggleId] = useState<string | null>(null);
@@ -54,15 +57,15 @@ export default function ItemMasterPage() {
   const columns = [
     { key: 'storeName', header: 'Store Item Name', render: (r: ItemRecord) => <span className="font-medium">{r.storeName}</span> },
     { key: 'tallyName', header: 'Tally Item Name', render: (r: ItemRecord) => <span className="font-mono text-xs text-muted-foreground">{r.tallyName}</span> },
-    { key: 'sku', header: 'SKU', render: (r: ItemRecord) => r.sku ? <span className="text-xs">{r.sku}</span> : <span className="text-xs text-muted-foreground">—</span> },
+    { key: 'sku', header: 'SKU', render: (r: ItemRecord) => r.sku ? <span className="text-xs">{r.sku}</span> : <span className="text-xs text-muted-foreground">-</span> },
     { key: 'itemType', header: 'Type', render: (r: ItemRecord) => (
       <Badge variant={r.itemType === 'raw' ? 'secondary' : 'default'} className="text-xs capitalize">
         {r.itemType === 'raw' ? 'Raw Material' : 'Finished Good'}
       </Badge>
     )},
-    { key: 'category', header: 'Category', render: (r: ItemRecord) => r.category ? <span className="text-xs">{r.category}</span> : <span className="text-xs text-muted-foreground">—</span> },
+    { key: 'category', header: 'Category', render: (r: ItemRecord) => r.category ? <span className="text-xs">{r.category}</span> : <span className="text-xs text-muted-foreground">-</span> },
     { key: 'baseUnit', header: 'Unit', render: (r: ItemRecord) => <span className="uppercase text-xs">{r.baseUnit}</span> },
-    { key: 'hsnCode', header: 'HSN Code', render: (r: ItemRecord) => r.hsnCode ? <span className="text-xs">{r.hsnCode}</span> : <span className="text-xs text-muted-foreground">—</span> },
+    { key: 'hsnCode', header: 'HSN Code', render: (r: ItemRecord) => r.hsnCode ? <span className="text-xs">{r.hsnCode}</span> : <span className="text-xs text-muted-foreground">-</span> },
     { key: 'gstRate', header: 'GST %', render: (r: ItemRecord) => `${r.gstRate}%` },
     { key: 'isActive', header: 'Status', render: (r: ItemRecord) => (
       <StatusBadge status={r.isActive ? 'success' : 'warning'} label={r.isActive ? 'Active' : 'Inactive'} />
@@ -71,15 +74,24 @@ export default function ItemMasterPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="erp-page-header mb-0">Item Master</h1>
-          <p className="text-sm text-muted-foreground mt-1">{allItems.length} items total · {items.length} shown</p>
-        </div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1.5" /> Add Item</Button>
-      </div>
+      <PageHeader
+        title="Item Master"
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Masters', href: '/items' },
+          { label: 'Item Master' },
+        ]}
+        description={`${allItems.length} items total, ${items.length} shown`}
+        action={(
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-1.5" /> Add Item
+          </Button>
+        )}
+      />
 
-      <ItemFiltersBar filters={filters} onChange={setFilters} />
+      <FormSection title="Filters" contentClassName="space-y-0">
+        <ItemFiltersBar filters={filters} onChange={setFilters} />
+      </FormSection>
 
       {items.length === 0 ? (
         <EmptyState
@@ -88,23 +100,25 @@ export default function ItemMasterPage() {
           onCreate={openCreate}
         />
       ) : (
-        <DataTable
-          columns={columns}
-          data={items}
-          pageSize={10}
-          actions={(row) => (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                <Edit2 className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setToggleId(row.id)} title={row.isActive ? 'Deactivate' : 'Activate'}>
-                {row.isActive
-                  ? <ToggleRight className="h-3.5 w-3.5 text-green-600" />
-                  : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
-              </Button>
-            </div>
-          )}
-        />
+        <TableWrapper title="Items" description={`${items.length} records`}>
+          <DataTable
+            columns={columns}
+            data={items}
+            pageSize={10}
+            actions={(row) => (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
+                  <Edit2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setToggleId(row.id)} title={row.isActive ? 'Deactivate' : 'Activate'}>
+                  {row.isActive
+                    ? <ToggleRight className="h-3.5 w-3.5 text-green-600" />
+                    : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
+                </Button>
+              </div>
+            )}
+          />
+        </TableWrapper>
       )}
 
       <ItemFormModal

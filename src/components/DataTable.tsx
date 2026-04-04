@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface Column<T> {
   key: string;
@@ -18,6 +20,7 @@ interface DataTableProps<T> {
   pageSize?: number;
   onRowClick?: (row: T) => void;
   actions?: (row: T) => React.ReactNode;
+  isLoading?: boolean;
 }
 
 export default function DataTable<T>({
@@ -28,6 +31,7 @@ export default function DataTable<T>({
   pageSize = 10,
   onRowClick,
   actions,
+  isLoading = false,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -53,48 +57,63 @@ export default function DataTable<T>({
         </div>
       )}
 
-      <div className="border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50 border-b">
+      <div className="border rounded-xl overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((col) => (
+                <TableHead key={col.key} className={col.className || ''}>
+                  {col.header}
+                </TableHead>
+              ))}
+              {actions && <TableHead className="text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && Array.from({ length: Math.min(pageSize, 6) }).map((_, idx) => (
+              <TableRow key={`skeleton-${idx}`}>
                 {columns.map((col) => (
-                  <th key={col.key} className={`text-left font-medium text-muted-foreground px-4 py-3 ${col.className || ''}`}>
-                    {col.header}
-                  </th>
+                  <TableCell key={col.key}>
+                    <Skeleton className="h-4 w-full" />
+                  </TableCell>
                 ))}
-                {actions && <th className="text-right font-medium text-muted-foreground px-4 py-3">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr><td colSpan={columns.length + (actions ? 1 : 0)} className="text-center py-8 text-muted-foreground">No data found</td></tr>
-              ) : (
-                paginated.map((row, i) => (
-                  <tr
-                    key={i}
-                    className={`border-b last:border-0 transition-colors ${onRowClick ? 'cursor-pointer hover:bg-muted/30' : 'hover:bg-muted/20'}`}
-                    onClick={() => onRowClick?.(row)}
-                  >
-                    {columns.map((col) => (
-                      <td key={col.key} className={`px-4 py-3 ${col.className || ''}`}>
-                        {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
-                      </td>
-                    ))}
-                    {actions && (
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        {actions(row)}
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                {actions && (
+                  <TableCell className="text-right">
+                    <Skeleton className="h-4 w-16 ml-auto" />
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+            {!isLoading && paginated.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={columns.length + (actions ? 1 : 0)} className="text-center py-8 text-muted-foreground">
+                  No data found
+                </TableCell>
+              </TableRow>
+            )}
+            {!isLoading && paginated.map((row, i) => (
+              <TableRow
+                key={i}
+                className={onRowClick ? 'cursor-pointer' : undefined}
+                onClick={() => onRowClick?.(row)}
+              >
+                {columns.map((col) => (
+                  <TableCell key={col.key} className={col.className || ''}>
+                    {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
+                  </TableCell>
+                ))}
+                {actions && (
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {actions(row)}
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
 
-      {totalPages > 1 && (
+      {totalPages > 1 && !isLoading && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}</span>
           <div className="flex items-center gap-1">

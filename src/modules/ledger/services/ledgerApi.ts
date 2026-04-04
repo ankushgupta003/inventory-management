@@ -8,4 +8,6 @@ export const ledgerApi = {
         params: { ...filters, page, limit },
       })
       .then((r) => r.data),
+  create: (data: Partial<LedgerEntry> | { entries: Partial<LedgerEntry>[] }) =>
+    api.post('/ledger', data).then((r) => r.data),
 };

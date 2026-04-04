@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
+import FormSection from '@/components/FormSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 
 const availableItems = [
@@ -32,9 +35,16 @@ export default function MaterialIssuePage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="erp-page-header">Material Issue</h1>
+      <PageHeader
+        title="Material Issue"
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Inventory', href: '/material-issue' },
+          { label: 'Material Issue' },
+        ]}
+      />
 
-      <div className="erp-section space-y-6">
+      <FormSection title="Issue Details">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label>Issue Type *</Label>
@@ -46,45 +56,72 @@ export default function MaterialIssuePage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2"><Label>Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium text-foreground">Items</h3>
-            <Button variant="outline" size="sm" onClick={addRow}><Plus className="h-3.5 w-3.5 mr-1" /> Add Row</Button>
-          </div>
-          <div className="border rounded-lg overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/50 border-b">
-                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Item</th>
-                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Quantity</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i} className="border-b last:border-0">
-                    <td className="px-3 py-2">
-                      <Select value={row.itemId} onValueChange={(v) => updateRow(i, 'itemId', v)}>
-                        <SelectTrigger className="w-56"><SelectValue placeholder="Select item" /></SelectTrigger>
-                        <SelectContent>{availableItems.map(it => <SelectItem key={it.id} value={it.id}>{it.name} ({it.unit})</SelectItem>)}</SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-3 py-2"><Input type="number" className="w-28" value={row.quantity || ''} onChange={(e) => updateRow(i, 'quantity', Number(e.target.value))} /></td>
-                    <td className="px-3 py-2">{rows.length > 1 && <Button variant="ghost" size="sm" onClick={() => removeRow(i)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            <Label>Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
         </div>
+      </FormSection>
 
-        <div className="flex justify-end pt-4 border-t">
+      <FormSection
+        title="Items"
+        actions={(
+          <Button variant="outline" size="sm" onClick={addRow}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Row
+          </Button>
+        )}
+      >
+        <div className="border rounded-xl overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Item</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead className="w-[60px]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Select value={row.itemId} onValueChange={(v) => updateRow(i, 'itemId', v)}>
+                      <SelectTrigger className="w-56"><SelectValue placeholder="Select item" /></SelectTrigger>
+                      <SelectContent>
+                        {availableItems.map(it => (
+                          <SelectItem key={it.id} value={it.id}>
+                            {it.name} ({it.unit})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      className="w-28"
+                      value={row.quantity || ''}
+                      onChange={(e) => updateRow(i, 'quantity', Number(e.target.value))}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {rows.length > 1 && (
+                      <Button variant="ghost" size="sm" onClick={() => removeRow(i)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </FormSection>
+
+      <FormSection title="Review">
+        <div className="flex justify-end">
           <Button onClick={handleSubmit}>Submit Issue</Button>
         </div>
-      </div>
+      </FormSection>
     </div>
   );
 }

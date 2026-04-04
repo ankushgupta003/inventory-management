@@ -11,7 +11,7 @@ interface KPICardProps {
 
 export default function KPICard({ title, value, icon: Icon, color }: KPICardProps) {
   return (
-    <div className="bg-card rounded-lg border p-5 flex items-start gap-4 animate-fade-in">
+    <div className="bg-card rounded-xl border shadow-sm p-5 flex items-start gap-4 animate-fade-in">
       <div className={cn('p-2.5 rounded-lg text-primary-foreground', color)}>
         <Icon className="h-5 w-5" />
       </div>
