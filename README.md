@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Inventory Management
 
 TODO: Document your project here
