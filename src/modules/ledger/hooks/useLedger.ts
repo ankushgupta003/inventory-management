@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
-import type { LedgerEntry, LedgerFilters, TransactionType, ItemCategory } from '../types';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import type { LedgerEntry, LedgerFilters, ItemCategory } from '../types';
+import { ledgerApi } from '../services/ledgerApi';
 
 const MOCK_DATA: LedgerEntry[] = [
   { id: '1', date: '2025-04-01', referenceNo: 'GIN-001', type: 'purchase', particulars: 'ABC Chemicals Pvt Ltd', itemName: 'Sodium Chloride', itemCategory: 'RAW', batchNo: 'B-2025-001', mfgDate: '2025-03-15', expiryDate: '2027-03-15', receiptQty: 500, issueQty: 0, rate: 45, remarks: 'Initial purchase' },
@@ -25,11 +26,30 @@ const defaultFilters: LedgerFilters = {
 };
 
 export function useLedger(category: ItemCategory) {
+  const [data, setData] = useState<LedgerEntry[]>([]);
   const [filters, setFilters] = useState<LedgerFilters>(defaultFilters);
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const [pageSize, setPageSize] = useState(10);
 
-  const categoryData = useMemo(() => MOCK_DATA.filter((e) => e.itemCategory === category), [category]);
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await ledgerApi.getAll({}, 1, 2000);
+        if (!active) return;
+        setData(res.data ?? []);
+      } catch {
+        if (active) setData(MOCK_DATA);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const source = data.length ? data : MOCK_DATA;
+  const categoryData = useMemo(() => source.filter((e) => e.itemCategory === category), [source, category]);
 
   const items = useMemo(() => [...new Set(categoryData.map((e) => e.itemName))], [categoryData]);
   const batches = useMemo(() => [...new Set(categoryData.map((e) => e.batchNo))], [categoryData]);
@@ -59,9 +79,15 @@ export function useLedger(category: ItemCategory) {
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
     return withBalance.slice(start, start + pageSize);
-  }, [withBalance, page]);
+  }, [withBalance, page, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(withBalance.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const resetFilters = useCallback(() => {
     setFilters(defaultFilters);
@@ -73,14 +99,22 @@ export function useLedger(category: ItemCategory) {
     setPage(1);
   }, []);
 
+  const changePageSize = useCallback((next: number) => {
+    setPageSize(next);
+    setPage(1);
+  }, []);
+
   return {
     entries: paginated,
+    filteredEntries: withBalance,
     totalEntries: withBalance.length,
     filters,
     applyFilters,
     resetFilters,
     page,
     setPage,
+    pageSize,
+    setPageSize: changePageSize,
     totalPages,
     items,
     batches,

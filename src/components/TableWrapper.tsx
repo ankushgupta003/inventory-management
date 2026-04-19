@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import SurfaceCard from '@/components/SurfaceCard';
 
 interface TableWrapperProps {
   title?: string;
@@ -22,21 +22,21 @@ export default function TableWrapper({
   const showHeader = Boolean(title || description || actions);
 
   return (
-    <Card className={cn('rounded-xl shadow-sm border', className)}>
+    <SurfaceCard className={cn('section-rhythm', className)} variant="default" padding="none">
       {showHeader && (
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4 space-y-0">
+        <div className="flex flex-col gap-2 border-b border-border/80 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="space-y-1">
-            {title && <CardTitle className="text-lg font-medium">{title}</CardTitle>}
-            {description && <CardDescription>{description}</CardDescription>}
+            {title && <h3 className="text-lg font-medium text-foreground">{title}</h3>}
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
           {actions && <div className="shrink-0">{actions}</div>}
-        </CardHeader>
+        </div>
       )}
-      <CardContent className={cn('p-0', contentClassName)}>
+      <div className={cn('p-0', contentClassName)}>
         <div className="w-full overflow-x-auto">
           {children}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SurfaceCard>
   );
 }

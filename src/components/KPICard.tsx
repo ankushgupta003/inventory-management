@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import StatCard from '@/components/StatCard';
 
 interface KPICardProps {
   title: string;
@@ -10,15 +10,12 @@ interface KPICardProps {
 }
 
 export default function KPICard({ title, value, icon: Icon, color }: KPICardProps) {
-  return (
-    <div className="bg-card rounded-xl border shadow-sm p-5 flex items-start gap-4 animate-fade-in">
-      <div className={cn('p-2.5 rounded-lg text-primary-foreground', color)}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm text-muted-foreground">{title}</p>
-        <p className="text-2xl font-bold text-foreground mt-0.5">{value}</p>
-      </div>
-    </div>
-  );
+  const tone =
+    color.includes('green') ? 'green' :
+    color.includes('orange') ? 'orange' :
+    color.includes('purple') ? 'purple' :
+    color.includes('teal') ? 'teal' :
+    color.includes('red') ? 'rose' : 'blue';
+
+  return <StatCard title={title} value={value} icon={Icon} tone={tone} />;
 }

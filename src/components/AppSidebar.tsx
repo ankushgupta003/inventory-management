@@ -11,35 +11,36 @@ import {
   FileCheck,
   BarChart3,
   ChevronLeft,
-  ChevronRight,
   Menu,
   ClipboardList,
   BookOpen,
-  FileSpreadsheet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navSections = [
   {
-    label: 'Overview',
-    items: [{ title: 'Dashboard', path: '/', icon: LayoutDashboard }],
+    label: 'Start',
+    items: [{ title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }],
   },
   {
-    label: 'Masters',
+    label: 'Master Setup',
     items: [
       { title: 'Item Master', path: '/items', icon: Package },
       { title: 'Party Master', path: '/parties', icon: Users },
     ],
   },
   {
-    label: 'Inventory',
+    label: 'Procure',
     items: [
-      { title: 'Purchase', path: '/purchases', icon: ShoppingCart },
+      { title: 'Purchase (GIN)', path: '/purchases', icon: ShoppingCart },
+    ],
+  },
+  {
+    label: 'Production Flow',
+    items: [
+      { title: 'Production Batches', path: '/production', icon: Factory },
       { title: 'MRS', path: '/mrs', icon: ClipboardList },
-      { title: 'Stock Issue', path: '/issues', icon: ArrowRightLeft },
-      { title: 'Sampling Advice', path: '/sampling', icon: FileSpreadsheet },
-      { title: 'Stock Ledger', path: '/stock-ledger', icon: BookOpen },
-      { title: 'Production', path: '/production', icon: Factory },
+      { title: 'Stock Movement', path: '/stock-movement', icon: ArrowRightLeft },
     ],
   },
   {
@@ -50,39 +51,65 @@ const navSections = [
     ],
   },
   {
-    label: 'Reports',
-    items: [{ title: 'Reports', path: '/reports', icon: BarChart3 }],
+    label: 'Ledger & Reports',
+    items: [
+      { title: 'Stock Ledger', path: '/stock-ledger', icon: BookOpen },
+      { title: 'Reports', path: '/reports', icon: BarChart3 },
+      { title: 'Quality Testing', path: '/quality-requests', icon: ClipboardList },
+    ],
   },
 ];
 
-export default function AppSidebar() {
+interface AppSidebarProps {
+  className?: string;
+  mobile?: boolean;
+  onNavigate?: () => void;
+}
+
+export default function AppSidebar({ className, mobile = false, onNavigate }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const canCollapse = !mobile;
 
   return (
     <aside
       className={cn(
-        'flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-200 min-h-screen',
-        collapsed ? 'w-16' : 'w-60'
+        'sidebar-premium flex h-full flex-col border-r border-sidebar-border bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(231_58%_14%)_100%)] text-sidebar-foreground transition-all duration-200',
+        canCollapse ? (collapsed ? 'w-[74px]' : 'w-[280px]') : 'w-full',
+        canCollapse ? 'sticky top-0 h-screen' : '',
+        className,
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between h-14 px-3 border-b border-sidebar-border">
-        {!collapsed && <span className="text-sm font-bold text-sidebar-accent-foreground tracking-wide">ERP System</span>}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-muted transition-colors"
-        >
-          {collapsed ? <Menu className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
+      <div className="border-b border-sidebar-border px-4 py-4">
+        <div className="flex items-center justify-between gap-2">
+          <Link to="/dashboard" className="flex items-center gap-3" onClick={onNavigate}>
+              <span className="grid h-11 w-11 place-content-center rounded-2xl bg-gradient-to-br from-[#2557ff] to-[#7e5eff] text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20">
+                <LayoutDashboard className="h-5 w-5" />
+              </span>
+            {!collapsed && (
+              <span>
+                <span className="block text-base font-semibold leading-none text-white">InventoryX</span>
+                <span className="mt-1 block text-xs text-sidebar-muted">Operations Hub</span>
+              </span>
+            )}
+          </Link>
+          {canCollapse ? (
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="rounded-lg p-1.5 text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <Menu className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 py-3 px-2 space-y-4 overflow-y-auto">
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4 pr-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {navSections.map((section) => (
           <div key={section.label} className="space-y-1">
             {!collapsed && (
-              <div className="px-3 text-[11px] uppercase tracking-wide text-sidebar-muted">
+              <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
                 {section.label}
               </div>
             )}
@@ -92,15 +119,16 @@ export default function AppSidebar() {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={onNavigate}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
                     isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
+                      ? 'bg-gradient-to-r from-[#2557ff] to-[#765eff] text-white font-semibold shadow-[0_14px_28px_-18px_rgba(37,87,255,0.95)]'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground'
                   )}
                   title={collapsed ? item.title : undefined}
                 >
-                  <item.icon className="h-4 w-4 shrink-0" />
+                  <item.icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-sidebar-muted')} />
                   {!collapsed && <span>{item.title}</span>}
                 </Link>
               );
@@ -108,6 +136,12 @@ export default function AppSidebar() {
           </div>
         ))}
       </nav>
+      {!collapsed && (
+        <div className="m-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-accent/40 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <p className="text-xs font-semibold text-white">Reports Ready</p>
+          <p className="mt-1 text-xs text-sidebar-muted">Track KPIs and bottlenecks in one place.</p>
+        </div>
+      )}
     </aside>
   );
 }

@@ -75,8 +75,14 @@ export const piAPI = {
 };
 
 export const invoiceAPI = {
-  getAll: (params?: Record<string, string>) => api.get('/invoices', { params }),
-  createFromPI: (piId: string, data: Record<string, unknown>) => api.post(`/invoices/from-pi/${piId}`, data),
+  getAll: (params?: Record<string, string>) => {
+    if (USE_MOCK) return Promise.resolve({ data: [] });
+    return api.get('/invoices', { params });
+  },
+  createFromPI: (piId: string, data: Record<string, unknown>) => {
+    if (USE_MOCK) return Promise.resolve({ data: { id: piId } });
+    return api.post(`/invoices/from-pi/${piId}`, data);
+  },
 };
 
 export const dashboardAPI = {

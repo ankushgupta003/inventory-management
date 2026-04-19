@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import SurfaceCard from '@/components/SurfaceCard';
 
 interface FormSectionProps {
   title: string;
@@ -20,17 +20,17 @@ export default function FormSection({
   contentClassName,
 }: FormSectionProps) {
   return (
-    <Card className={cn('rounded-xl shadow-sm border', className)}>
-      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4 space-y-0">
+    <SurfaceCard className={cn('section-rhythm', className)} padding="none">
+      <div className="flex flex-col gap-2 border-b border-border/80 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="space-y-1">
-          <CardTitle className="text-lg font-medium">{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+          <h3 className="text-lg font-medium text-foreground">{title}</h3>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
-      </CardHeader>
-      <CardContent className={cn('space-y-4', contentClassName)}>
+      </div>
+      <div className={cn('space-y-4 p-5', contentClassName)}>
         {children}
-      </CardContent>
-    </Card>
+      </div>
+    </SurfaceCard>
   );
 }

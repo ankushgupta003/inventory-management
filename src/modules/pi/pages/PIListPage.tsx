@@ -1,22 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, FileCheck, Lock } from 'lucide-react';
+import { Eye, FileCheck, Lock, ReceiptText, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { toast } from 'sonner';
+import DataTable from '@/components/DataTable';
+import CompactSelect from '@/components/CompactSelect';
+import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { piApi } from '../services/piApi';
 import { invoiceAPI } from '@/services/api';
-import type { ProformaInvoiceRecord, PIStatus } from '../types';
+import type { PIStatus, ProformaInvoiceRecord } from '../types';
 
 const STATUS_LABELS: Record<PIStatus, string> = {
   pending: 'Pending',
@@ -32,7 +27,6 @@ const statusColors: Record<PIStatus, string> = {
   closed: 'bg-gray-100 text-gray-700',
 };
 
-const pageSize = 10;
 const useMock = import.meta.env.DEV;
 
 const mockPI: ProformaInvoiceRecord[] = [
@@ -42,7 +36,7 @@ const mockPI: ProformaInvoiceRecord[] = [
     date: '2026-04-01',
     customerId: 'c-1',
     customerName: 'XYZ Industries',
-    customerAddress: 'Plot 21, Industrial Area\nPune, MH 411019',
+    customerAddress: 'Plot 21',
     items: [
       { itemId: 'fg-1', itemName: 'Motor Assembly A1', quantity: 50, rate: 4500, amount: 225000 },
       { itemId: 'fg-2', itemName: 'Gear Box GB-200', quantity: 20, rate: 8200, amount: 164000 },
@@ -58,10 +52,8 @@ const mockPI: ProformaInvoiceRecord[] = [
     date: '2026-04-02',
     customerId: 'c-2',
     customerName: 'PQR Trading Co.',
-    customerAddress: 'Warehouse Road\nAhmedabad, GJ 380015',
-    items: [
-      { itemId: 'fg-3', itemName: 'Packing Box Large', quantity: 200, rate: 45, amount: 9000 },
-    ],
+    customerAddress: 'Ring Road',
+    items: [{ itemId: 'fg-3', itemName: 'Packing Box Large', quantity: 200, rate: 45, amount: 9000 }],
     totalQuantity: 200,
     totalAmount: 9000,
     status: 'pending',
@@ -77,20 +69,14 @@ export default function PIListPage() {
   const [status, setStatus] = useState<'all' | PIStatus>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
         const data = await piApi.getAll();
-        if (active) {
-          if (useMock && data.length === 0) {
-            setRecords(mockPI);
-          } else {
-            setRecords(data);
-          }
-        }
+        if (!active) return;
+        setRecords(useMock && data.length === 0 ? mockPI : data);
       } catch {
         if (active) setRecords(useMock ? mockPI : []);
       } finally {
@@ -110,20 +96,30 @@ export default function PIListPage() {
       if (dateFrom && r.date < dateFrom) return false;
       if (dateTo && r.date > dateTo) return false;
       if (!q) return true;
-      const text = `${r.piNo} ${r.customerName}`.toLowerCase();
-      return text.includes(q);
+      return `${r.piNo} ${r.customerName}`.toLowerCase().includes(q);
     });
   }, [records, search, status, dateFrom, dateTo]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page]);
+  const kpis: ListPageKpi[] = useMemo(() => {
+    const pending = records.filter((r) => r.status === 'pending').length;
+    const partial = records.filter((r) => r.status === 'partial').length;
+    const completed = records.filter((r) => r.status === 'completed').length;
+    const totalAmount = records.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+    return [
+      { id: 'all', label: 'Total PI', value: records.length.toLocaleString('en-IN'), icon: ReceiptText, tone: 'blue' },
+      { id: 'pending', label: 'Pending', value: pending.toLocaleString('en-IN'), icon: Lock, tone: 'orange' },
+      { id: 'partial', label: 'Partial', value: partial.toLocaleString('en-IN'), icon: FileCheck, tone: 'purple' },
+      { id: 'amount', label: 'Total Amount', value: `INR ${totalAmount.toLocaleString('en-IN')}`, icon: Users, tone: 'green' },
+      { id: 'completed', label: 'Completed', value: completed.toLocaleString('en-IN'), icon: FileCheck, tone: 'green' },
+    ].slice(0, 4);
+  }, [records]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, status, dateFrom, dateTo]);
+  const exportCsv = () => {
+    exportCsvFile(`proforma-invoice-list-${csvDateSuffix()}.csv`, [
+      ['PI No', 'Date', 'Customer', 'Total Items', 'Total Qty', 'Total Amount', 'Status'],
+      ...filtered.map((r) => [r.piNo, r.date, r.customerName, r.items.length, r.totalQuantity, r.totalAmount, STATUS_LABELS[r.status]]),
+    ]);
+  };
 
   const handleClose = async (record: ProformaInvoiceRecord) => {
     try {
@@ -140,128 +136,65 @@ export default function PIListPage() {
       await invoiceAPI.createFromPI(record.id, {});
       toast.success('Invoice created from PI');
     } catch {
-      toast.error('Failed to convert to invoice');
+      toast.error('Failed to convert PI');
     }
   };
 
+  const columns = [
+    { key: 'piNo', header: 'PI No', render: (r: ProformaInvoiceRecord) => <span className="font-medium text-primary">{r.piNo}</span> },
+    { key: 'date', header: 'Date' },
+    { key: 'customerName', header: 'Customer' },
+    { key: 'totalItems', header: 'Total Items', className: 'text-right', render: (r: ProformaInvoiceRecord) => r.items.length },
+    { key: 'totalQuantity', header: 'Total Qty', className: 'text-right' },
+    { key: 'totalAmount', header: 'Total Amount', className: 'text-right', render: (r: ProformaInvoiceRecord) => `INR ${r.totalAmount.toLocaleString('en-IN')}` },
+    { key: 'status', header: 'Status', render: (r: ProformaInvoiceRecord) => <Badge variant="secondary" className={statusColors[r.status]}>{STATUS_LABELS[r.status]}</Badge> },
+  ];
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Proforma Invoice (PI)</h1>
-        <Button onClick={() => navigate('/proforma-invoices/create')}>
-          <Plus className="h-4 w-4 mr-2" /> Create PI
-        </Button>
-      </div>
+      <ListPageShell
+        title="Proforma Invoice"
+        description="Manage PI lifecycle before invoice conversion."
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Proforma Invoice' }]}
+        addLabel="Create PI"
+        onAdd={() => navigate('/proforma-invoices/create')}
+        onExport={exportCsv}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-card border border-border rounded-lg p-4">
-        <Input
-          placeholder="Search by customer or PI no"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+      <ListKpiStrip items={kpis} />
+
+      <ListFilterBar>
+        <div className="min-w-[220px] flex-1">
+          <Input placeholder="Search PI no or customer" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <CompactSelect
+          value={status}
+          onChange={(value) => setStatus(value as 'all' | PIStatus)}
+          options={[{ value: 'all', label: 'All Status' }, ...Object.entries(STATUS_LABELS).map(([k, v]) => ({ value: k, label: v }))]}
+          className="w-40"
         />
-        <Select value={status} onValueChange={(v) => setStatus(v as 'all' | PIStatus)}>
-          <SelectTrigger><SelectValue placeholder="All Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-      </div>
+        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
+        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
+        <Button variant="outline" onClick={() => { setSearch(''); setStatus('all'); setDateFrom(''); setDateTo(''); }}>Clear</Button>
+      </ListFilterBar>
 
-      <div className="bg-card border border-border rounded-lg p-4">
-        <div className="border rounded-lg overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[120px]">PI No</TableHead>
-                <TableHead className="min-w-[120px]">Date</TableHead>
-                <TableHead className="min-w-[180px]">Customer Name</TableHead>
-                <TableHead className="min-w-[120px] text-right">Total Items</TableHead>
-                <TableHead className="min-w-[140px] text-right">Total Quantity</TableHead>
-                <TableHead className="min-w-[140px] text-right">Total Amount</TableHead>
-                <TableHead className="min-w-[120px]">Status</TableHead>
-                <TableHead className="min-w-[220px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    Loading PI records...
-                  </TableCell>
-                </TableRow>
-              )}
-              {!loading && paginated.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    No PI records found.
-                  </TableCell>
-                </TableRow>
-              )}
-              {paginated.map((record) => {
-                const totalItems = record.items?.length ?? 0;
-                const totalQty = record.items?.reduce((s, i) => s + (i.quantity || 0), 0) ?? 0;
-                return (
-                  <TableRow key={record.id}>
-                    <TableCell className="font-medium">{record.piNo}</TableCell>
-                    <TableCell>{record.date}</TableCell>
-                    <TableCell>{record.customerName}</TableCell>
-                    <TableCell className="text-right">{totalItems}</TableCell>
-                    <TableCell className="text-right">{totalQty}</TableCell>
-                    <TableCell className="text-right font-medium">₹{record.totalAmount.toLocaleString('en-IN')}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={`text-[10px] ${statusColors[record.status]}`}>
-                        {STATUS_LABELS[record.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => navigate(`/proforma-invoices/${record.id}`)}>
-                          <Eye className="h-4 w-4 mr-1" /> View
-                        </Button>
-                        {record.status === 'pending' ? (
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/proforma-invoices/${record.id}`)}>
-                            Edit
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="sm" disabled>
-                            Edit
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => handleConvert(record)}>
-                          <FileCheck className="h-4 w-4 mr-1" /> Convert
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={record.status === 'closed'}
-                          onClick={() => handleClose(record)}
-                        >
-                          <Lock className="h-4 w-4 mr-1" /> Close
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Page {page} of {totalPages}</span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
-        </div>
-      )}
+      <ListTablePanel title="PI Records" description={`${filtered.length} records`}>
+        <DataTable<ProformaInvoiceRecord>
+          columns={columns}
+          data={filtered}
+          isLoading={loading}
+          pageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
+          actions={(row) => (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => navigate(`/proforma-invoices/${row.id}`)}><Eye className="mr-1 h-4 w-4" /> View</Button>
+              <Button variant="ghost" size="sm" onClick={() => handleConvert(row)}><FileCheck className="mr-1 h-4 w-4" /> Convert</Button>
+              <Button variant="ghost" size="sm" disabled={row.status === 'closed'} onClick={() => handleClose(row)}><Lock className="mr-1 h-4 w-4" /> Close</Button>
+            </div>
+          )}
+        />
+      </ListTablePanel>
     </div>
   );
 }
+

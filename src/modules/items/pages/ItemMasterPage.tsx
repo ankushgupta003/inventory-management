@@ -1,13 +1,12 @@
-import { useState } from 'react';
-import { Plus, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Edit2, Package, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import DataTable from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import PageHeader from '@/components/PageHeader';
-import TableWrapper from '@/components/TableWrapper';
-import FormSection from '@/components/FormSection';
+import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import ItemFormModal from '../components/ItemFormModal';
 import ItemFiltersBar from '../components/ItemFiltersBar';
 import EmptyState from '../components/EmptyState';
@@ -54,6 +53,37 @@ export default function ItemMasterPage() {
 
   const hasFilters = filters.search !== '' || filters.status !== 'all' || filters.itemType !== 'all';
 
+  const kpis: ListPageKpi[] = useMemo(() => {
+    const active = allItems.filter((i) => i.isActive).length;
+    const inactive = allItems.length - active;
+    const raw = allItems.filter((i) => i.itemType === 'raw').length;
+    const finished = allItems.filter((i) => i.itemType === 'finished').length;
+    return [
+      { id: 'total', label: 'Total Items', value: allItems.length.toLocaleString('en-IN'), icon: Package, tone: 'blue' },
+      { id: 'active', label: 'Active', value: active.toLocaleString('en-IN'), icon: Package, tone: 'green' },
+      { id: 'raw', label: 'Raw Material', value: raw.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
+      { id: 'finished', label: 'Finished Goods', value: finished.toLocaleString('en-IN'), icon: Package, tone: 'purple' },
+      { id: 'inactive', label: 'Inactive', value: inactive.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
+    ].slice(0, 4);
+  }, [allItems]);
+
+  const exportCsv = () => {
+    exportCsvFile(`item-master-list-${csvDateSuffix()}.csv`, [
+      ['Store Name', 'Tally Name', 'SKU', 'Type', 'Category', 'Unit', 'HSN', 'GST', 'Status'],
+      ...items.map((i) => [
+        i.storeName,
+        i.tallyName,
+        i.sku || '-',
+        i.itemType,
+        i.category || '-',
+        i.baseUnit,
+        i.hsnCode || '-',
+        i.gstRate,
+        i.isActive ? 'Active' : 'Inactive',
+      ]),
+    ]);
+  };
+
   const columns = [
     { key: 'storeName', header: 'Store Item Name', render: (r: ItemRecord) => <span className="font-medium">{r.storeName}</span> },
     { key: 'tallyName', header: 'Tally Item Name', render: (r: ItemRecord) => <span className="font-mono text-xs text-muted-foreground">{r.tallyName}</span> },
@@ -74,24 +104,23 @@ export default function ItemMasterPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
+      <ListPageShell
         title="Item Master"
+        description={`${allItems.length} items total, ${items.length} shown`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Masters', href: '/items' },
           { label: 'Item Master' },
         ]}
-        description={`${allItems.length} items total, ${items.length} shown`}
-        action={(
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-1.5" /> Add Item
-          </Button>
-        )}
+        addLabel="Add Item"
+        onAdd={openCreate}
+        onExport={exportCsv}
       />
 
-      <FormSection title="Filters" contentClassName="space-y-0">
+      <ListKpiStrip items={kpis} />
+
+      <ListFilterBar title="Filters">
         <ItemFiltersBar filters={filters} onChange={setFilters} />
-      </FormSection>
+      </ListFilterBar>
 
       {items.length === 0 ? (
         <EmptyState
@@ -100,11 +129,12 @@ export default function ItemMasterPage() {
           onCreate={openCreate}
         />
       ) : (
-        <TableWrapper title="Items" description={`${items.length} records`}>
+        <ListTablePanel title="Items" description={`${items.length} records`}>
           <DataTable
             columns={columns}
             data={items}
             pageSize={10}
+            pageSizeOptions={[10, 25, 50, 100]}
             actions={(row) => (
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
@@ -118,7 +148,7 @@ export default function ItemMasterPage() {
               </div>
             )}
           />
-        </TableWrapper>
+        </ListTablePanel>
       )}
 
       <ItemFormModal

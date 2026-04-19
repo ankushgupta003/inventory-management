@@ -13,13 +13,13 @@ export interface StockBatch {
 }
 
 const fallbackItems: ItemRecord[] = [
+  { id: 'fg-1', storeName: 'Finished Product A', tallyName: 'Finished Product A', sku: 'FG-001', itemType: 'finished', category: 'Finished', baseUnit: 'pcs', hsnCode: '3004', gstRate: 12, isActive: true, createdAt: '' },
   { id: '10', storeName: 'Motor Assembly A1', tallyName: 'Motor Assembly A1', sku: 'MA-1', itemType: 'finished', category: 'Finished', baseUnit: 'pcs', hsnCode: '8501', gstRate: 18, isActive: true, createdAt: '' },
-  { id: '11', storeName: 'Gear Box GB-200', tallyName: 'Gear Box GB-200', sku: 'GB-200', itemType: 'finished', category: 'Finished', baseUnit: 'pcs', hsnCode: '8483', gstRate: 18, isActive: true, createdAt: '' },
 ];
 
 const fallbackStock: StockBatch[] = [
+  { itemName: 'Finished Product A', batchNo: 'FG-001', availableQty: 480, mfgDate: '2026-04-08', expiryDate: '2028-04-08' },
   { itemName: 'Motor Assembly A1', batchNo: 'FG-240401-01', availableQty: 120, mfgDate: '2026-04-01', expiryDate: '2028-04-01' },
-  { itemName: 'Gear Box GB-200', batchNo: 'FG-240402-02', availableQty: 60, mfgDate: '2026-04-02', expiryDate: '2028-04-02' },
 ];
 
 function computeBalances(entries: LedgerEntry[]): StockBatch[] {

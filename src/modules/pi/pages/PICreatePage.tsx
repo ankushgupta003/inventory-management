@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, FileText } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import PageHeader from '@/components/PageHeader';
+import FormSection from '@/components/FormSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,7 +98,7 @@ export default function PICreatePage() {
         })),
       };
       await piApi.create(payload);
-      toast.success('Proforma Invoice created');
+      toast.success('Proforma invoice created');
       navigate('/proforma-invoices');
     } catch {
       toast.error('Failed to create PI');
@@ -106,24 +108,33 @@ export default function PICreatePage() {
   };
 
   const totals = useMemo(() => {
-    const totalQty = watchedItems?.reduce((s, r) => s + (r.quantity || 0), 0) ?? 0;
-    const totalAmount = watchedItems?.reduce((s, r) => s + (r.quantity * r.rate || 0), 0) ?? 0;
+    const totalQty = watchedItems?.reduce((sum, row) => sum + (row.quantity || 0), 0) ?? 0;
+    const totalAmount = watchedItems?.reduce((sum, row) => sum + (row.quantity * row.rate || 0), 0) ?? 0;
     return { totalQty, totalAmount };
   }, [watchedItems]);
 
-  const fieldClass = (err: unknown) => err ? 'border-destructive' : '';
+  const fieldClass = (err: unknown) => (err ? 'border-destructive' : '');
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <FileText className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold text-foreground">Create Proforma Invoice</h1>
-      </div>
+    <div className="space-y-7 animate-fade-in">
+      <PageHeader
+        title="Create Proforma Invoice"
+        description="Prepare customer-wise PI lines for downstream invoicing."
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Sales', href: '/proforma-invoices' },
+          { label: 'Create PI' },
+        ]}
+        action={(
+          <Button variant="outline" className="rounded-xl" onClick={() => navigate('/proforma-invoices')}>
+            Back to List
+          </Button>
+        )}
+      />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Header</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <FormSection title="Header">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label>PI No</Label>
               <Input readOnly {...register('piNo')} />
@@ -139,39 +150,39 @@ export default function PICreatePage() {
                   <SelectValue placeholder="Select customer" />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {errors.customerId && <p className="text-xs text-destructive">{errors.customerId.message}</p>}
+              {errors.customerId ? <p className="text-xs text-destructive">{errors.customerId.message}</p> : null}
             </div>
           </div>
-        </div>
+        </FormSection>
 
-        <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Items</h3>
+        <FormSection
+          title="Items"
+          actions={(
             <Button type="button" variant="outline" size="sm" onClick={() => append({ ...emptyRow })}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add Row
             </Button>
-          </div>
-
-          <div className="border border-border rounded-lg overflow-x-auto">
+          )}
+        >
+          <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-muted/50 border-b border-border">
-                  {['Item *','Quantity *','Rate','Amount','Remarks',''].map((h) => (
-                    <th key={h} className="text-left px-2.5 py-2.5 font-medium text-muted-foreground whitespace-nowrap text-xs">{h}</th>
+                <tr className="border-b border-border bg-muted/50">
+                  {['Item *', 'Quantity *', 'Rate', 'Amount', 'Remarks', ''].map((h) => (
+                    <th key={h} className="whitespace-nowrap px-2.5 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {fields.map((field, idx) => {
-                  const re = errors.items?.[idx];
+                  const rowErrors = errors.items?.[idx];
                   const row = watchedItems?.[idx];
                   return (
-                    <tr key={field.id} className="border-b border-border last:border-0 align-top">
+                    <tr key={field.id} className="border-b border-border align-top last:border-0">
                       <td className="px-2.5 py-2">
                         <Select
                           value={row?.itemId ?? ''}
@@ -181,7 +192,7 @@ export default function PICreatePage() {
                             setValue(`items.${idx}.itemName`, item?.storeName || item?.tallyName || item?.sku || '', { shouldValidate: true });
                           }}
                         >
-                          <SelectTrigger className={`w-56 ${fieldClass(re?.itemId)}`}>
+                          <SelectTrigger className={`w-56 ${fieldClass(rowErrors?.itemId)}`}>
                             <SelectValue placeholder="Select item" />
                           </SelectTrigger>
                           <SelectContent>
@@ -192,27 +203,23 @@ export default function PICreatePage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        {re?.itemId && <p className="text-[10px] text-destructive mt-1">{re.itemId.message}</p>}
                       </td>
                       <td className="px-2.5 py-2">
-                        <Input type="number" className={`w-24 ${fieldClass(re?.quantity)}`} {...register(`items.${idx}.quantity`, { valueAsNumber: true })} />
-                        {re?.quantity && <p className="text-[10px] text-destructive mt-1">{re.quantity.message}</p>}
+                        <Input type="number" className={`w-24 ${fieldClass(rowErrors?.quantity)}`} {...register(`items.${idx}.quantity`, { valueAsNumber: true })} />
                       </td>
                       <td className="px-2.5 py-2">
                         <Input type="number" className="w-24" {...register(`items.${idx}.rate`, { valueAsNumber: true })} />
                       </td>
-                      <td className="px-2.5 py-2 font-medium">
-                        ₹{((row?.quantity ?? 0) * (row?.rate ?? 0)).toLocaleString('en-IN')}
-                      </td>
+                      <td className="px-2.5 py-2 font-medium">Rs {((row?.quantity ?? 0) * (row?.rate ?? 0)).toLocaleString('en-IN')}</td>
                       <td className="px-2.5 py-2">
                         <Textarea rows={1} className="w-40" {...register(`items.${idx}.remarks`)} />
                       </td>
                       <td className="px-2.5 py-2 pt-3">
-                        {fields.length > 1 && (
+                        {fields.length > 1 ? (
                           <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}>
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   );
@@ -220,21 +227,23 @@ export default function PICreatePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </FormSection>
 
-        <div className="bg-card border border-border rounded-lg p-5 flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Total Qty: <span className="font-medium text-foreground">{totals.totalQty}</span>
+        <FormSection title="Totals">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Total Qty: <span className="font-medium text-foreground">{totals.totalQty}</span>
+            </div>
+            <div className="text-lg font-semibold text-foreground">
+              Total Amount: <span className="text-primary">Rs {totals.totalAmount.toLocaleString('en-IN')}</span>
+            </div>
           </div>
-          <div className="text-lg font-semibold text-foreground">
-            Total Amount: <span className="text-primary">₹{totals.totalAmount.toLocaleString('en-IN')}</span>
-          </div>
-        </div>
+        </FormSection>
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate('/proforma-invoices')}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save PI'}
+          <Button type="submit" className="rounded-xl" disabled={submitting}>
+            {submitting ? 'Saving...' : 'Save PI'}
           </Button>
         </div>
       </form>

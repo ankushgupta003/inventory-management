@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/PageHeader';
 import { piApi } from '../services/piApi';
 import type { ProformaInvoiceRecord, PIStatus } from '../types';
 
@@ -101,15 +102,26 @@ export default function PIViewPage() {
   const address = record.customerAddress || '';
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between print:hidden">
-        <Button variant="ghost" onClick={() => navigate('/proforma-invoices')}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back
-        </Button>
-        <Button onClick={() => window.print()}>
-          <Printer className="h-4 w-4 mr-2" /> Print
-        </Button>
-      </div>
+    <div className="space-y-7 animate-fade-in">
+      <PageHeader
+        title="Proforma Invoice"
+        description={`${record.piNo} | ${record.date}`}
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Sales', href: '/proforma-invoices' },
+          { label: 'View PI' },
+        ]}
+        action={(
+          <div className="flex items-center justify-between gap-2 print:hidden">
+            <Button variant="outline" className="rounded-xl" onClick={() => navigate('/proforma-invoices')}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back
+            </Button>
+            <Button className="rounded-xl" onClick={() => window.print()}>
+              <Printer className="h-4 w-4 mr-2" /> Print
+            </Button>
+          </div>
+        )}
+      />
 
       <div className="bg-white text-slate-900 border border-border rounded-lg p-6 print:p-0 print:border-0 print:bg-transparent">
         <div className="text-center border-b pb-4 mb-4">

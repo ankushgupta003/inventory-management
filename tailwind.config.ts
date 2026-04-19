@@ -12,7 +12,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Manrope", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -70,6 +70,13 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
           muted: "hsl(var(--sidebar-muted))",
+        },
+        shell: {
+          canvas: "hsl(var(--shell-canvas))",
+          surface: "hsl(var(--shell-surface))",
+          "surface-muted": "hsl(var(--shell-surface-muted))",
+          "surface-elevated": "hsl(var(--shell-surface-elevated))",
+          topbar: "hsl(var(--shell-topbar-bg))",
         },
         kpi: {
           blue: "hsl(var(--kpi-blue))",

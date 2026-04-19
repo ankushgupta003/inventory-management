@@ -13,15 +13,15 @@ export interface StockBatch {
 }
 
 const fallbackStock: StockBatch[] = [
-  { itemName: 'Steel Rod 10mm', batchNo: 'B-2026-001', availableQty: 320, mfgDate: '2026-01-15', expiryDate: '2028-01-15' },
-  { itemName: 'Steel Rod 10mm', batchNo: 'B-2026-010', availableQty: 140, mfgDate: '2026-02-10', expiryDate: '2028-02-10' },
-  { itemName: 'Copper Wire 2mm', batchNo: 'B-2026-002', availableQty: 180, mfgDate: '2026-02-10', expiryDate: '2029-02-10' },
+  { itemName: 'Cotton', batchNo: 'RM-001', availableQty: 1000, mfgDate: '2026-04-01', expiryDate: '2027-04-01' },
+  { itemName: 'Cotton', batchNo: 'RM-002', availableQty: 500, mfgDate: '2026-04-02', expiryDate: '2027-04-02' },
+  { itemName: 'Chemical', batchNo: 'RM-003', availableQty: 300, mfgDate: '2026-04-03', expiryDate: '2027-04-03' },
   { itemName: 'Packing Box Large', batchNo: 'B-2026-003', availableQty: 90, mfgDate: '2026-03-01', expiryDate: '2027-03-01' },
 ];
 
 const fallbackItems: ItemRecord[] = [
-  { id: '1', storeName: 'Steel Rod 10mm', tallyName: 'Steel Rod 10mm', sku: 'SR-10', itemType: 'raw', category: 'Raw', baseUnit: 'kg', hsnCode: '7214', gstRate: 18, isActive: true, createdAt: '' },
-  { id: '2', storeName: 'Copper Wire 2mm', tallyName: 'Copper Wire 2mm', sku: 'CW-2', itemType: 'raw', category: 'Raw', baseUnit: 'kg', hsnCode: '7408', gstRate: 18, isActive: true, createdAt: '' },
+  { id: 'rm-1', storeName: 'Cotton', tallyName: 'COTTON', sku: 'RM-CT', itemType: 'raw', category: 'Raw', baseUnit: 'kg', hsnCode: '5201', gstRate: 5, isActive: true, createdAt: '' },
+  { id: 'rm-2', storeName: 'Chemical', tallyName: 'CHEMICAL', sku: 'RM-CH', itemType: 'raw', category: 'Chemical', baseUnit: 'kg', hsnCode: '2800', gstRate: 18, isActive: true, createdAt: '' },
   { id: '3', storeName: 'Packing Box Large', tallyName: 'Packing Box Large', sku: 'PB-L', itemType: 'raw', category: 'Packaging', baseUnit: 'pcs', hsnCode: '4819', gstRate: 12, isActive: true, createdAt: '' },
 ];
 

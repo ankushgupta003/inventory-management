@@ -1,24 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, CheckCircle, PackageCheck, Search } from 'lucide-react';
+import { CheckCircle, ClipboardList, Eye, PackageCheck } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import DataTable from '@/components/DataTable';
-import StatusBadge from '@/components/StatusBadge';
+import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import CompactSelect from '@/components/CompactSelect';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import PageHeader from '@/components/PageHeader';
-import FormSection from '@/components/FormSection';
-import TableWrapper from '@/components/TableWrapper';
+import StatusBadge from '@/components/StatusBadge';
+import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { useMRSList } from '../hooks/useMRS';
 import type { MRSRecord, MRSStatus } from '../types';
-import { toast } from 'sonner';
-
-const statusVariantMap: Record<MRSStatus, 'pending' | 'info' | 'success'> = {
-  pending: 'pending',
-  approved: 'info',
-  issued: 'success',
-};
+import { getMRSProgress } from '../utils/mrsProgress';
 
 export default function MRSListPage() {
   const navigate = useNavigate();
@@ -32,83 +26,111 @@ export default function MRSListPage() {
     setConfirmAction(null);
   };
 
+  const kpis: ListPageKpi[] = useMemo(() => {
+    const pending = records.filter((r) => r.status === 'pending').length;
+    const approved = records.filter((r) => r.status === 'approved').length;
+    const issued = records.filter((r) => r.status === 'issued').length;
+    const qty = records.reduce((sum, r) => sum + r.items.reduce((s, i) => s + (i.qtyRequested || 0), 0), 0);
+    return [
+      { id: 'all', label: 'Total MRS', value: records.length.toLocaleString('en-IN'), icon: ClipboardList, tone: 'blue' },
+      { id: 'pending', label: 'Pending', value: pending.toLocaleString('en-IN'), icon: ClipboardList, tone: 'orange' },
+      { id: 'approved', label: 'Approved', value: approved.toLocaleString('en-IN'), icon: CheckCircle, tone: 'purple' },
+      { id: 'qty', label: 'Requested Qty', value: qty.toLocaleString('en-IN'), icon: PackageCheck, tone: 'green' },
+      { id: 'issued', label: 'Issued', value: issued.toLocaleString('en-IN'), icon: PackageCheck, tone: 'green' },
+    ].slice(0, 4);
+  }, [records]);
+
+  const exportCsv = () => {
+    exportCsvFile(`mrs-list-${csvDateSuffix()}.csv`, [
+      ['MRS No', 'Date', 'Department', 'Batch', 'Total Items', 'Status'],
+      ...records.map((r) => [
+        r.mrsNo,
+        r.date,
+        r.department,
+        r.productionBatchNo || '-',
+        r.items.length,
+        getMRSProgress(r.items).status,
+      ]),
+    ]);
+  };
+
   const columns = [
     { key: 'mrsNo', header: 'MRS No', render: (r: MRSRecord) => <span className="font-medium text-primary">{r.mrsNo}</span> },
     { key: 'date', header: 'Date' },
     { key: 'department', header: 'Department' },
+    { key: 'productionBatchNo', header: 'Production Batch', render: (r: MRSRecord) => <span className="font-mono text-xs">{r.productionBatchNo || '-'}</span> },
     { key: 'items', header: 'Total Items', render: (r: MRSRecord) => r.items.length },
     {
-      key: 'status', header: 'Status',
-      render: (r: MRSRecord) => <StatusBadge status={statusVariantMap[r.status]} label={r.status} />,
+      key: 'status',
+      header: 'Status',
+      render: (r: MRSRecord) => {
+        const progress = getMRSProgress(r.items);
+        const label = progress.status.charAt(0).toUpperCase() + progress.status.slice(1);
+        return <StatusBadge status={progress.status} label={label} />;
+      },
     },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Material Requisition Slip (MRS)"
-        breadcrumbs={[
-          { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Inventory', href: '/mrs' },
-          { label: 'MRS' },
-        ]}
-        action={(
-          <Button onClick={() => navigate('/mrs/create')}>
-            <Plus className="h-4 w-4 mr-2" /> Create MRS
-          </Button>
-        )}
+      <ListPageShell
+        title="Material Requisition Slip"
+        description="Track requisitions from request to issue completion."
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'MRS' }]}
+        addLabel="Create MRS"
+        onAdd={() => navigate('/mrs/create')}
+        onExport={exportCsv}
       />
 
-      <FormSection title="Filters">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[200px] max-w-sm relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search MRS no, department..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="pl-9"
-            />
-          </div>
-          <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v as MRSStatus | 'all' })}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="issued">Issued</SelectItem>
-            </SelectContent>
-          </Select>
-          {(filters.search || filters.status !== 'all') && (
-            <Button variant="ghost" size="sm" onClick={() => setFilters({ search: '', status: 'all' })}>Clear</Button>
-          )}
-        </div>
-      </FormSection>
+      <ListKpiStrip items={kpis} />
 
-      <TableWrapper title="MRS Records" description={`Showing ${records.length} records`}>
+      <ListFilterBar>
+        <div className="min-w-[240px] flex-1">
+          <Input
+            placeholder="Search MRS no or department"
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          />
+        </div>
+        <CompactSelect
+          value={filters.status}
+          onChange={(value) => setFilters({ ...filters, status: value as MRSStatus | 'all' })}
+          options={[
+            { value: 'all', label: 'All Status' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'approved', label: 'Approved' },
+            { value: 'issued', label: 'Issued' },
+          ]}
+          className="w-40"
+        />
+        <Button variant="outline" onClick={() => setFilters({ search: '', status: 'all' })}>Clear</Button>
+      </ListFilterBar>
+
+      <ListTablePanel title="MRS Records" description={`${records.length} records`}>
         <DataTable<MRSRecord>
           columns={columns}
           data={records}
           pageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
           actions={(row) => (
-            <div className="flex items-center gap-1 justify-end">
+            <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" onClick={() => navigate(`/mrs/${row.id}`)}>
-                <Eye className="h-3.5 w-3.5 mr-1" /> View
+                <Eye className="mr-1 h-4 w-4" /> View
               </Button>
               {row.status === 'pending' && (
-                <Button variant="ghost" size="sm" className="text-info" onClick={() => setConfirmAction({ id: row.id, action: 'approved' })}>
-                  <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                <Button variant="ghost" size="sm" onClick={() => setConfirmAction({ id: row.id, action: 'approved' })}>
+                  <CheckCircle className="mr-1 h-4 w-4" /> Approve
                 </Button>
               )}
               {row.status === 'approved' && (
-                <Button variant="ghost" size="sm" className="text-success" onClick={() => navigate(`/mrs/${row.id}/issue`)}>
-                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> Issue
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/mrs/${row.id}/issue`)}>
+                  <PackageCheck className="mr-1 h-4 w-4" /> Issue
                 </Button>
               )}
             </div>
           )}
         />
-      </TableWrapper>
+      </ListTablePanel>
 
       <ConfirmDialog
         open={!!confirmAction}
@@ -120,3 +142,4 @@ export default function MRSListPage() {
     </div>
   );
 }
+

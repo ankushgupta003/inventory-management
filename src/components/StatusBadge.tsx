@@ -12,15 +12,15 @@ type StatusVariant =
   | 'default';
 
 const variantStyles: Record<StatusVariant, string> = {
-  pending: 'bg-warning/15 text-warning border-warning/30',
-  partial: 'bg-info/15 text-info border-info/30',
-  completed: 'bg-success/15 text-success border-success/30',
-  closed: 'bg-muted text-muted-foreground border-border',
-  success: 'bg-success/15 text-success border-success/30',
-  warning: 'bg-warning/15 text-warning border-warning/30',
-  error: 'bg-destructive/15 text-destructive border-destructive/30',
-  info: 'bg-info/15 text-info border-info/30',
-  default: 'bg-secondary text-secondary-foreground border-border',
+  pending: 'status-chip status-chip-warning',
+  partial: 'status-chip status-chip-info',
+  completed: 'status-chip status-chip-success',
+  closed: 'status-chip status-chip-neutral',
+  success: 'status-chip status-chip-success',
+  warning: 'status-chip status-chip-warning',
+  error: 'status-chip status-chip-error',
+  info: 'status-chip status-chip-info',
+  default: 'status-chip status-chip-neutral',
 };
 
 interface StatusBadgeProps {
@@ -33,7 +33,7 @@ export default function StatusBadge({ status, label, className }: StatusBadgePro
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize',
+        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium capitalize',
         variantStyles[status] || variantStyles.default,
         className,
       )}

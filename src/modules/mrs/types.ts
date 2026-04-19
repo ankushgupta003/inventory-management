@@ -15,6 +15,9 @@ export interface MRSRecord {
   mrsNo: string;
   date: string;
   department: string;
+  productionBatchId: string;
+  productionBatchNo: string;
+  productionNo?: string;
   requisitionBy: string;
   sanctionedBy: string;
   issuedBy: string;

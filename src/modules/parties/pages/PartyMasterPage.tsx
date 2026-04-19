@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { Plus, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Edit2, Eye, ToggleLeft, ToggleRight, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import DataTable from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import PageHeader from '@/components/PageHeader';
-import TableWrapper from '@/components/TableWrapper';
-import FormSection from '@/components/FormSection';
+import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import PartyFormModal from '../components/PartyFormModal';
 import PartyFiltersBar from '../components/PartyFiltersBar';
 import PartyEmptyState from '../components/PartyEmptyState';
@@ -16,6 +16,7 @@ import type { PartyFormValues } from '../schemas/partySchema';
 import { toast } from 'sonner';
 
 export default function PartyMasterPage() {
+  const navigate = useNavigate();
   const { parties, allParties, filters, setFilters, addParty, updateParty, toggleStatus } = useParties();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingParty, setEditingParty] = useState<PartyRecord | null>(null);
@@ -46,6 +47,36 @@ export default function PartyMasterPage() {
   const toggleParty = allParties.find((p) => p.id === toggleId);
   const hasFilters = filters.search !== '' || filters.status !== 'all' || filters.partyType !== 'all';
 
+  const kpis: ListPageKpi[] = useMemo(() => {
+    const active = allParties.filter((p) => p.isActive).length;
+    const vendors = allParties.filter((p) => p.partyType === 'vendor').length;
+    const customers = allParties.filter((p) => p.partyType === 'customer').length;
+    const both = allParties.filter((p) => p.partyType === 'both').length;
+    return [
+      { id: 'total', label: 'Total Parties', value: allParties.length.toLocaleString('en-IN'), icon: Users, tone: 'blue' },
+      { id: 'active', label: 'Active', value: active.toLocaleString('en-IN'), icon: Users, tone: 'green' },
+      { id: 'vendors', label: 'Vendors', value: vendors.toLocaleString('en-IN'), icon: Users, tone: 'orange' },
+      { id: 'customers', label: 'Customers', value: customers.toLocaleString('en-IN'), icon: Users, tone: 'purple' },
+      { id: 'both', label: 'Both', value: both.toLocaleString('en-IN'), icon: Users, tone: 'blue' },
+    ].slice(0, 4);
+  }, [allParties]);
+
+  const exportCsv = () => {
+    exportCsvFile(`party-master-list-${csvDateSuffix()}.csv`, [
+      ['Name', 'Type', 'Contact', 'Phone', 'GST No', 'City', 'State', 'Status'],
+      ...parties.map((p) => [
+        p.name,
+        p.partyType,
+        p.contactPerson || '-',
+        p.phone || '-',
+        p.gstNumber || '-',
+        p.city || '-',
+        p.state || '-',
+        p.isActive ? 'Active' : 'Inactive',
+      ]),
+    ]);
+  };
+
   const columns = [
     { key: 'name', header: 'Party Name', render: (r: PartyRecord) => <span className="font-medium">{r.name}</span> },
     { key: 'partyType', header: 'Type', render: (r: PartyRecord) => (
@@ -66,24 +97,23 @@ export default function PartyMasterPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
+      <ListPageShell
         title="Party Master"
+        description={`${allParties.length} parties total, ${parties.length} shown`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Masters', href: '/parties' },
           { label: 'Party Master' },
         ]}
-        description={`${allParties.length} parties total, ${parties.length} shown`}
-        action={(
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-1.5" /> Add Party
-          </Button>
-        )}
+        addLabel="Add Party"
+        onAdd={openCreate}
+        onExport={exportCsv}
       />
 
-      <FormSection title="Filters" contentClassName="space-y-0">
+      <ListKpiStrip items={kpis} />
+
+      <ListFilterBar title="Filters">
         <PartyFiltersBar filters={filters} onChange={setFilters} />
-      </FormSection>
+      </ListFilterBar>
 
       {parties.length === 0 ? (
         <PartyEmptyState
@@ -92,13 +122,17 @@ export default function PartyMasterPage() {
           onCreate={openCreate}
         />
       ) : (
-        <TableWrapper title="Parties" description={`${parties.length} records`}>
+        <ListTablePanel title="Parties" description={`${parties.length} records`}>
           <DataTable
             columns={columns}
             data={parties}
             pageSize={10}
+            pageSizeOptions={[10, 25, 50, 100]}
             actions={(row) => (
               <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/parties/${row.id}`)} title="View">
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
                   <Edit2 className="h-3.5 w-3.5" />
                 </Button>
@@ -110,7 +144,7 @@ export default function PartyMasterPage() {
               </div>
             )}
           />
-        </TableWrapper>
+        </ListTablePanel>
       )}
 
       <PartyFormModal

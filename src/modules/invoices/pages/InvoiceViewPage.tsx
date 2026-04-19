@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
+import FormSection from '@/components/FormSection';
 import { Button } from '@/components/ui/button';
 import { invoiceApi } from '../services/invoiceApi';
 import type { InvoiceRecord } from '../types';
@@ -63,13 +65,14 @@ export default function InvoiceViewPage() {
         if (active) setRecord(data);
       } catch {
         if (active) {
-          const fallback = useMock ? mockInvoices.find((s) => s.id === id) ?? null : null;
+          const fallback = useMock ? mockInvoices.find((invoice) => invoice.id === id) ?? null : null;
           setRecord(fallback);
         }
       } finally {
         if (active) setLoading(false);
       }
     };
+
     load();
     return () => {
       active = false;
@@ -77,9 +80,9 @@ export default function InvoiceViewPage() {
   }, [id]);
 
   const totals = useMemo(() => {
-    const qty = record?.items?.reduce((s, i) => s + (i.quantity || 0), 0) ?? 0;
-    const subtotal = record?.items?.reduce((s, i) => s + (i.quantity * i.rate || 0), 0) ?? 0;
-    const tax = record?.items?.reduce((s, i) => s + (i.quantity * i.rate * (i.taxPercent || 0) / 100), 0) ?? 0;
+    const qty = record?.items.reduce((sum, item) => sum + (item.quantity || 0), 0) ?? 0;
+    const subtotal = record?.items.reduce((sum, item) => sum + (item.quantity * item.rate || 0), 0) ?? 0;
+    const tax = record?.items.reduce((sum, item) => sum + (item.quantity * item.rate * (item.taxPercent || 0) / 100), 0) ?? 0;
     return { qty, subtotal, tax, total: subtotal + tax };
   }, [record]);
 
@@ -91,83 +94,100 @@ export default function InvoiceViewPage() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate('/invoices')}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
         <p className="text-muted-foreground">Invoice not found.</p>
       </div>
     );
   }
 
-  const address = record.customerAddress || '';
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between print:hidden">
-        <Button variant="ghost" onClick={() => navigate('/invoices')}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back
-        </Button>
-        <Button onClick={() => window.print()}>
-          <Printer className="h-4 w-4 mr-2" /> Print
-        </Button>
-      </div>
+    <div className="space-y-7 animate-fade-in">
+      <PageHeader
+        title="Invoice View"
+        description="Review invoice details, line items, and totals before print or dispatch."
+        breadcrumbs={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Invoices', href: '/invoices' },
+          { label: record.invoiceNo },
+        ]}
+        action={
+          <div className="flex items-center gap-2 print:hidden">
+            <Button variant="outline" className="rounded-xl" onClick={() => navigate('/invoices')}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+            <Button className="rounded-xl" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" /> Print
+            </Button>
+          </div>
+        }
+      />
 
-      <div className="bg-white text-slate-900 border border-border rounded-lg p-6 print:p-0 print:border-0 print:bg-transparent">
-        <div className="text-center border-b pb-4 mb-4">
+      <div className="rounded-xl border border-border bg-card p-6 text-slate-900 print:border-0 print:bg-transparent print:p-0">
+        <div className="mb-4 border-b pb-4 text-center">
           <h1 className="text-2xl font-bold tracking-wide">{COMPANY_NAME}</h1>
-          <p className="text-sm text-muted-foreground">TAX INVOICE</p>
+          <p className="text-sm text-muted-foreground">Tax Invoice</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-6 text-sm mb-6">
-          <div>
-            <div className="font-semibold">Customer</div>
-            <div>{record.customerName}</div>
-            {address && <div className="text-muted-foreground whitespace-pre-line">{address}</div>}
+        <FormSection title="Billing Details" description="Customer and invoice reference information.">
+          <div className="grid grid-cols-1 gap-6 text-sm md:grid-cols-2">
+            <div>
+              <p className="font-semibold">Customer</p>
+              <p>{record.customerName}</p>
+              {record.customerAddress ? <p className="whitespace-pre-line text-muted-foreground">{record.customerAddress}</p> : null}
+            </div>
+            <div className="space-y-1 text-left md:text-right">
+              <p><span className="text-muted-foreground">Invoice No:</span> <span className="font-medium">{record.invoiceNo}</span></p>
+              <p><span className="text-muted-foreground">Date:</span> <span className="font-medium">{record.date}</span></p>
+              <p><span className="text-muted-foreground">PI No:</span> <span className="font-medium">{record.piNo || record.piId}</span></p>
+            </div>
           </div>
-          <div className="text-right">
-            <div><span className="text-muted-foreground">Invoice No:</span> <span className="font-medium">{record.invoiceNo}</span></div>
-            <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{record.date}</span></div>
-            <div><span className="text-muted-foreground">PI No:</span> <span className="font-medium">{record.piNo || record.piId}</span></div>
-          </div>
-        </div>
+        </FormSection>
 
-        <div className="border border-slate-300 rounded-md overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-100 border-b border-slate-300">
-                {['Sr No','Item','Batch No','Quantity','Rate','Tax %','Amount'].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 font-semibold text-slate-700">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {record.items.map((row, idx) => (
-                <tr key={`${row.itemId}-${idx}`} className="border-b border-slate-200 last:border-0">
-                  <td className="px-3 py-2">{idx + 1}</td>
-                  <td className="px-3 py-2 font-medium">{row.itemName}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{row.batchNo}</td>
-                  <td className="px-3 py-2">{row.quantity}</td>
-                  <td className="px-3 py-2">₹{row.rate.toLocaleString('en-IN')}</td>
-                  <td className="px-3 py-2">{row.taxPercent}%</td>
-                  <td className="px-3 py-2">₹{(row.amount || row.quantity * row.rate).toLocaleString('en-IN')}</td>
+        <FormSection title="Line Items" description="Batch-level quantity and tax breakup.">
+          <div className="overflow-x-auto rounded-lg border border-slate-300">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-300 bg-slate-100">
+                  {['Sr No', 'Item', 'Batch No', 'Quantity', 'Rate', 'Tax %', 'Amount'].map((header) => (
+                    <th key={header} className="px-3 py-2 text-left font-semibold text-slate-700">
+                      {header}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex justify-end mt-4 text-sm">
-          <div className="space-y-1 text-right">
-            <div>Total Qty: <span className="font-semibold">{totals.qty}</span></div>
-            <div>Subtotal: <span className="font-semibold">₹{totals.subtotal.toLocaleString('en-IN')}</span></div>
-            <div>Tax: <span className="font-semibold">₹{totals.tax.toLocaleString('en-IN')}</span></div>
-            <div>Total Amount: <span className="font-semibold">₹{totals.total.toLocaleString('en-IN')}</span></div>
+              </thead>
+              <tbody>
+                {record.items.map((row, idx) => (
+                  <tr key={`${row.itemId}-${idx}`} className="border-b border-slate-200 last:border-0">
+                    <td className="px-3 py-2">{idx + 1}</td>
+                    <td className="px-3 py-2 font-medium">{row.itemName}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.batchNo}</td>
+                    <td className="px-3 py-2">{row.quantity}</td>
+                    <td className="px-3 py-2">Rs {row.rate.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2">{row.taxPercent}%</td>
+                    <td className="px-3 py-2">Rs {(row.amount || row.quantity * row.rate).toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        </FormSection>
+
+        <FormSection title="Totals">
+          <div className="flex justify-end text-sm">
+            <div className="space-y-1 text-right">
+              <p>Total Qty: <span className="font-semibold">{totals.qty}</span></p>
+              <p>Subtotal: <span className="font-semibold">Rs {totals.subtotal.toLocaleString('en-IN')}</span></p>
+              <p>Tax: <span className="font-semibold">Rs {totals.tax.toLocaleString('en-IN')}</span></p>
+              <p>Total Amount: <span className="font-semibold">Rs {totals.total.toLocaleString('en-IN')}</span></p>
+            </div>
+          </div>
+        </FormSection>
 
         <div className="mt-8 grid grid-cols-2 gap-6 text-sm">
           <div />
           <div className="text-right">
-            <div className="border-t border-slate-300 pt-2 inline-block w-56">Authorized Signatory</div>
+            <div className="inline-block w-56 border-t border-slate-300 pt-2">Authorized Signatory</div>
           </div>
         </div>
       </div>

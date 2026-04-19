@@ -6,6 +6,8 @@ import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
 import TableWrapper from '@/components/TableWrapper';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import SurfaceCard from '@/components/SurfaceCard';
+import StatusBadge from '@/components/StatusBadge';
 import { issuesApi } from '../services/issuesApi';
 import type { IssueRecord } from '../types';
 
@@ -61,7 +63,7 @@ export default function IssueViewPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-7 animate-fade-in">
       <PageHeader
         title="Stock Issue"
         description={`${issue.issueNo} | ${issue.date}`}
@@ -72,30 +74,51 @@ export default function IssueViewPage() {
         ]}
         action={(
           <div className="flex items-center gap-2 print:hidden">
-            <Button variant="outline" onClick={() => navigate('/issues')}>
+            <Button className="rounded-xl" variant="outline" onClick={() => navigate('/issues')}>
               <ArrowLeft className="h-4 w-4 mr-2" /> Back
             </Button>
-            <Button onClick={() => window.print()}>
+            <Button className="rounded-xl" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" /> Print
             </Button>
           </div>
         )}
       />
 
-      <FormSection title="Summary">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <SurfaceCard variant="default">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Issue Type</p>
+          <div className="mt-2">
+            <StatusBadge status="info" label={typeLabel[issue.type]} />
+          </div>
+        </SurfaceCard>
+        <SurfaceCard variant="default">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Reference</p>
+          <p className="mt-2 text-base font-semibold text-foreground">{issue.mrsNo || issue.mrsId || '-'}</p>
+        </SurfaceCard>
+        <SurfaceCard variant="default">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Items</p>
+          <p className="mt-2 text-base font-semibold text-foreground">{issue.items.length}</p>
+        </SurfaceCard>
+      </div>
+
+      <FormSection title="Summary" description="Overview of issue header details and traceable references.">
+        <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
           <div>
-            <div className="text-muted-foreground">Type</div>
-            <div className="font-medium">{typeLabel[issue.type]}</div>
+            <div className="text-muted-foreground">Issue No</div>
+            <div className="font-medium">{issue.issueNo}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">Reference</div>
-            <div className="font-medium">{issue.mrsNo || issue.mrsId || '-'}</div>
+            <div className="text-muted-foreground">Date</div>
+            <div className="font-medium">{issue.date}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Issue Lines</div>
+            <div className="font-medium">{issue.items.length}</div>
           </div>
         </div>
       </FormSection>
 
-      <TableWrapper title="Items">
+      <TableWrapper title="Items" description="Detailed quantities issued by batch and line remarks.">
         <Table>
           <TableHeader>
             <TableRow>
@@ -118,19 +141,19 @@ export default function IssueViewPage() {
         </Table>
       </TableWrapper>
 
-      <FormSection title="Signatories">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
+      <FormSection title="Signatories" description="Recorded stakeholders for issue processing and receipt.">
+        <div className="grid grid-cols-1 gap-6 text-sm sm:grid-cols-3">
           <div>
             <div className="text-muted-foreground">Issued By</div>
-            <div className="font-medium">{issue.issuedBy || '-'}</div>
+            <div className="mt-1 font-medium">{issue.issuedBy || '-'}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Approved By</div>
-            <div className="font-medium">{issue.approvedBy || '-'}</div>
+            <div className="mt-1 font-medium">{issue.approvedBy || '-'}</div>
           </div>
           <div>
             <div className="text-muted-foreground">Received By</div>
-            <div className="font-medium">{issue.receivedBy || '-'}</div>
+            <div className="mt-1 font-medium">{issue.receivedBy || '-'}</div>
           </div>
         </div>
       </FormSection>

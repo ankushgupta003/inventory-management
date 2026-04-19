@@ -1,83 +1,60 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Wallet, Boxes, AlertTriangle, Clock, PackageCheck,
+  AlertTriangle,
+  Boxes,
+  ClipboardList,
+  Factory,
+  Gauge,
+  PackageCheck,
+  ShieldAlert,
+  Wallet,
 } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import KPICard from '@/components/KPICard';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import PageHeader from '@/components/PageHeader';
-import TableWrapper from '@/components/TableWrapper';
+import PanelCard from '@/components/PanelCard';
+import KpiRow from '@/components/KpiRow';
+import ChartPanelHeader from '@/components/ChartPanelHeader';
+import MetricSparkCard from '@/components/MetricSparkCard';
+import CompactSelect from '@/components/CompactSelect';
+import EmptyStatePanel from '@/components/EmptyStatePanel';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import api, { USE_MOCK } from '@/services/api';
+import {
+  buildDashboardSnapshot,
+  fetchReportDataset,
+  getFilterOptions,
+  makeDefaultFilters,
+  mapDatasetToRankedItems,
+  mapSnapshotToMetricCards,
+  mapSnapshotToTrendPanel,
+  type DashboardSnapshot,
+  type ReportDataset,
+  type ReportFilters,
+} from '@/modules/analytics';
 
-type DashboardKPI = {
-  totalStockValue: number;
-  totalStockQty: number;
-  lowStockCount: number;
-  expiringSoonCount: number;
-};
-
-type RecentTransaction = {
-  id: string;
-  date: string;
-  type: 'GIN' | 'Issue' | 'Invoice' | 'Production';
-  itemName: string;
-  qty: number;
-  batchNo: string;
-};
-
-type DashboardResponse = {
-  kpis: DashboardKPI;
-  recentTransactions: RecentTransaction[];
-  monthlySales: { month: string; amount: number }[];
-};
-
-const useMock = USE_MOCK || import.meta.env.DEV;
-
-const mockDashboard: DashboardResponse = {
-  kpis: {
-    totalStockValue: 2450000,
-    totalStockQty: 12850,
-    lowStockCount: 6,
-    expiringSoonCount: 4,
-  },
-  recentTransactions: [
-    { id: 't1', date: '2026-04-03', type: 'GIN', itemName: 'Steel Rod 10mm', qty: 200, batchNo: 'B-2026-010' },
-    { id: 't2', date: '2026-04-03', type: 'Issue', itemName: 'Copper Wire 2mm', qty: 25, batchNo: 'B-2026-002' },
-    { id: 't3', date: '2026-04-02', type: 'Production', itemName: 'Motor Assembly A1', qty: 120, batchNo: 'FG-240401-01' },
-    { id: 't4', date: '2026-04-02', type: 'Invoice', itemName: 'Gear Box GB-200', qty: 20, batchNo: 'FG-240402-02' },
-  ],
-  monthlySales: [
-    { month: 'Jan', amount: 320000 },
-    { month: 'Feb', amount: 420000 },
-    { month: 'Mar', amount: 380000 },
-    { month: 'Apr', amount: 510000 },
-    { month: 'May', amount: 460000 },
-    { month: 'Jun', amount: 620000 },
-  ],
-};
+const periodOptions = [
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'yearly', label: 'Yearly' },
+];
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [filters, setFilters] = useState<ReportFilters>(makeDefaultFilters());
+  const [dataset, setDataset] = useState<ReportDataset | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('weekly');
 
   useEffect(() => {
     let active = true;
-    if (useMock) {
-      setData(mockDashboard);
-      setLoading(false);
-      return () => {
-        active = false;
-      };
-    }
     const load = async () => {
       try {
-        const res = await api.get<DashboardResponse>('/dashboard').then((r) => r.data);
+        const data = await fetchReportDataset();
         if (!active) return;
-        setData(res);
+        setDataset(data);
       } catch {
-        if (active) setData(null);
+        if (!active) return;
+        setDataset(null);
       } finally {
         if (active) setLoading(false);
       }
@@ -86,90 +63,198 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [useMock]);
+  }, []);
 
-  const kpis = useMemo(() => {
-    if (!data) return [] as { title: string; value: string; icon: any; color: string }[];
-    return [
-      { title: 'Total Stock Value', value: `?${data.kpis.totalStockValue.toLocaleString('en-IN')}`, icon: Wallet, color: 'bg-kpi-blue' },
-      { title: 'Total Stock Quantity', value: data.kpis.totalStockQty.toLocaleString('en-IN'), icon: Boxes, color: 'bg-kpi-green' },
-      { title: 'Low Stock Items', value: data.kpis.lowStockCount.toString(), icon: AlertTriangle, color: 'bg-kpi-orange' },
-      { title: 'Expiring Soon', value: data.kpis.expiringSoonCount.toString(), icon: Clock, color: 'bg-kpi-red' },
-    ];
-  }, [data]);
+  const options = useMemo(
+    () => (dataset ? getFilterOptions(dataset) : { items: ['all'], batches: ['all'], parties: ['all'], statuses: ['all'] }),
+    [dataset]
+  );
+
+  const snapshot: DashboardSnapshot | null = useMemo(() => {
+    if (!dataset) return null;
+    return buildDashboardSnapshot(dataset, filters);
+  }, [dataset, filters]);
+
+  const metricCards = useMemo(() => (snapshot ? mapSnapshotToMetricCards(snapshot) : []), [snapshot]);
+  const trendPanel = useMemo(() => (snapshot ? mapSnapshotToTrendPanel(snapshot) : null), [snapshot]);
+  const rankedItems = useMemo(() => (dataset ? mapDatasetToRankedItems(dataset) : []), [dataset]);
+
+  const attentionRows = snapshot?.alerts.slice(0, 5) || [];
+  const spotlightData = snapshot?.funnel.map((f) => ({ stage: f.label, value: f.count })) || [];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="min-w-0 space-y-6 animate-fade-in">
       <PageHeader
         title="Dashboard"
+        description="Visual operations cockpit across procurement, production, quality, and sales."
         breadcrumbs={[{ label: 'Dashboard' }]}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
-          <KPICard key={kpi.title} {...kpi} />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <TableWrapper title="Recent Transactions" description="Latest inventory movements">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[110px]">Date</TableHead>
-                  <TableHead className="min-w-[120px]">Type</TableHead>
-                  <TableHead className="min-w-[180px]">Item</TableHead>
-                  <TableHead className="min-w-[100px] text-right">Qty</TableHead>
-                  <TableHead className="min-w-[140px]">Batch</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">Loading...</TableCell>
-                  </TableRow>
-                )}
-                {!loading && (!data || data.recentTransactions.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">No transactions found.</TableCell>
-                  </TableRow>
-                )}
-                {data?.recentTransactions.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell>{tx.date}</TableCell>
-                    <TableCell>{tx.type}</TableCell>
-                    <TableCell className="font-medium">{tx.itemName}</TableCell>
-                    <TableCell className="text-right">{tx.qty}</TableCell>
-                    <TableCell className="font-mono text-xs">{tx.batchNo}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableWrapper>
+      <PanelCard
+        className="bg-shell-surface-elevated/80"
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <CompactSelect
+              value={filters.itemName}
+              onChange={(value) => setFilters((prev) => ({ ...prev, itemName: value }))}
+              options={options.items.map((x) => ({ value: x, label: x === 'all' ? 'All Items' : x }))}
+              className="w-36"
+            />
+            <CompactSelect
+              value={filters.status}
+              onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+              options={options.statuses.map((x) => ({ value: x, label: x === 'all' ? 'All Statuses' : x }))}
+              className="w-36"
+            />
+            <CompactSelect
+              value={period}
+              onChange={setPeriod}
+              options={periodOptions}
+              className="w-28"
+            />
+          </div>
+        )}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metricCards.map((card, idx) => (
+            <MetricSparkCard
+              key={card.id}
+              model={card}
+              icon={[Wallet, Boxes, ClipboardList, PackageCheck][idx] || Wallet}
+            />
+          ))}
         </div>
+      </PanelCard>
 
-        <Card className="rounded-xl shadow-sm">
-          <CardHeader className="flex items-center gap-2">
-            <PackageCheck className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-lg font-medium">Monthly Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{ amount: { label: 'Sales', color: 'hsl(var(--primary))' } }}
-              className="h-56"
-            >
-              <BarChart data={data?.monthlySales || []}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={36} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="amount" fill="var(--color-amount)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-3">
+        <PanelCard className="xl:col-span-2" bodyClassName="space-y-4">
+          <ChartPanelHeader
+            title="Revenue / Throughput"
+            subtitle="Inventory movement vs dispatch quantity trend"
+            controls={<CompactSelect value={period} onChange={setPeriod} options={periodOptions} className="w-28" />}
+            stats={(
+              <>
+                <KpiRow label="Invoice Qty" value={(snapshot?.throughputTrend.reduce((s, p) => s + p.invoiceQty, 0) || 0).toLocaleString('en-IN')} icon={PackageCheck} tone="blue" />
+                <KpiRow label="Movement Qty" value={(snapshot?.throughputTrend.reduce((s, p) => s + p.movementQty, 0) || 0).toLocaleString('en-IN')} icon={Gauge} tone="orange" />
+              </>
+            )}
+          />
+          <ChartContainer
+            config={{
+              primary: { label: 'Invoice Qty', color: 'hsl(var(--kpi-blue))' },
+              secondary: { label: 'Movement Qty', color: 'hsl(var(--kpi-orange))' },
+            }}
+            className="h-72"
+          >
+            <LineChart data={(trendPanel?.points || []).map((point) => ({ label: point.label, primary: point.primary, secondary: point.secondary || 0 }))}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={36} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Line type="monotone" dataKey="primary" stroke="var(--color-primary)" strokeWidth={3} dot={false} />
+              <Line type="monotone" dataKey="secondary" stroke="var(--color-secondary)" strokeWidth={3} dot={false} />
+            </LineChart>
+          </ChartContainer>
+        </PanelCard>
+
+        <PanelCard title="Quality Spotlight" subtitle="Critical checks and stage load" bodyClassName="space-y-4">
+          <div className="grid grid-cols-1 gap-3">
+            <KpiRow label="QA Pending" value={(snapshot?.kpis.qaPendingCount || 0).toLocaleString('en-IN')} icon={ClipboardList} tone="purple" />
+            <KpiRow label="Blocked Batches" value={(snapshot?.kpis.blockedBatchCount || 0).toLocaleString('en-IN')} icon={ShieldAlert} tone="orange" />
+            <KpiRow label="Open MRS" value={(snapshot?.kpis.openMrsCount || 0).toLocaleString('en-IN')} icon={Factory} tone="blue" />
+          </div>
+          <ChartContainer config={{ value: { label: 'Count', color: 'hsl(var(--kpi-purple))' } }} className="h-44">
+            <BarChart data={spotlightData}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="stage" tickLine={false} axisLine={false} hide />
+              <YAxis tickLine={false} axisLine={false} width={30} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="value" fill="var(--color-value)" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </PanelCard>
       </div>
+
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-3">
+        <PanelCard title="Top Moving Items" subtitle="Highest movement volume in selected window">
+          <div className="space-y-2">
+            {rankedItems.slice(0, 5).map((item) => (
+              <div key={item.id} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">{item.metricLabel}</p>
+                  <p className="text-base font-semibold">{item.metricValue}</p>
+                </div>
+              </div>
+            ))}
+            {!loading && rankedItems.length === 0 ? (
+              <EmptyStatePanel icon={Boxes} title="No movement data" description="Top moving items will appear as stock movement records are created." />
+            ) : null}
+          </div>
+        </PanelCard>
+
+        <PanelCard title="Attention Queue" subtitle="Operational alerts and bottlenecks">
+          <div className="space-y-2">
+            {attentionRows.map((alert) => (
+              <div key={alert.id} className="rounded-xl border border-border/70 bg-muted/40 px-3 py-2">
+                <p className="text-sm font-semibold text-foreground">{alert.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{alert.description}</p>
+                {alert.href ? <Link to={alert.href} className="mt-1 inline-block text-xs font-medium text-primary hover:underline">Open</Link> : null}
+              </div>
+            ))}
+            {!loading && attentionRows.length === 0 ? (
+              <EmptyStatePanel icon={AlertTriangle} title="All clear" description="No major alerts currently in the filtered range." />
+            ) : null}
+          </div>
+        </PanelCard>
+
+        <PanelCard title="Workflow Funnel" subtitle="Stage-wise operational load">
+          <ChartContainer config={{ count: { label: 'Count', color: 'hsl(var(--kpi-teal))' } }} className="h-72">
+            <BarChart data={(snapshot?.funnel || []).map((row) => ({ stage: row.label, count: row.count }))}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="stage" tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={50} />
+              <YAxis tickLine={false} axisLine={false} width={30} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="count" fill="var(--color-count)" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </PanelCard>
+      </div>
+
+      <PanelCard title="Recent Critical Activity" subtitle="Latest high-impact movements, QA updates, and commercial events">
+        <div className="overflow-x-auto rounded-xl border border-border/70">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead className="text-right">Qty</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(snapshot?.recentCriticalActivities || []).slice(0, 10).map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>{row.date}</TableCell>
+                  <TableCell className="capitalize">{row.type}</TableCell>
+                  <TableCell className="font-medium">{row.title}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{row.subtitle}</TableCell>
+                  <TableCell className="text-right">{row.quantity?.toLocaleString('en-IN') || '-'}</TableCell>
+                </TableRow>
+              ))}
+              {!loading && (!snapshot || snapshot.recentCriticalActivities.length === 0) ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No critical activity found</TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </PanelCard>
     </div>
   );
 }
