@@ -13,8 +13,8 @@ export default function PartyFiltersBar({ filters, onChange }: Props) {
   const hasFilters = filters.status !== 'all' || filters.partyType !== 'all' || filters.search.length > 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="relative flex-1 min-w-[220px] max-w-sm">
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="table-toolbar-search relative sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search by name, GST, phone, city..."
@@ -24,7 +24,7 @@ export default function PartyFiltersBar({ filters, onChange }: Props) {
         />
       </div>
       <Select value={filters.partyType} onValueChange={(v) => onChange({ ...filters, partyType: v as PartyFilters['partyType'] })}>
-        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Type" /></SelectTrigger>
+        <SelectTrigger className="table-toolbar-control"><SelectValue placeholder="Type" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Types</SelectItem>
           <SelectItem value="vendor">Vendor</SelectItem>
@@ -33,7 +33,7 @@ export default function PartyFiltersBar({ filters, onChange }: Props) {
         </SelectContent>
       </Select>
       <Select value={filters.status} onValueChange={(v) => onChange({ ...filters, status: v as PartyFilters['status'] })}>
-        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+        <SelectTrigger className="table-toolbar-control-sm"><SelectValue placeholder="Status" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Status</SelectItem>
           <SelectItem value="active">Active</SelectItem>
@@ -41,7 +41,7 @@ export default function PartyFiltersBar({ filters, onChange }: Props) {
         </SelectContent>
       </Select>
       {hasFilters && (
-        <Button variant="ghost" size="sm" onClick={() => onChange({ search: '', status: 'all', partyType: 'all' })}>
+        <Button className="table-toolbar-button" variant="ghost" size="sm" onClick={() => onChange({ search: '', status: 'all', partyType: 'all' })}>
           <X className="h-3.5 w-3.5 mr-1" /> Clear
         </Button>
       )}

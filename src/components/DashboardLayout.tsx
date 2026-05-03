@@ -42,7 +42,7 @@ export default function DashboardLayout({ portal = 'company' }: DashboardLayoutP
           isSidebarCollapsed={sidebarCollapsed}
           portal={portal}
         />
-        <main className={cn('flex-1 overflow-auto p-4 sm:p-6 lg:p-8', portal === 'super-admin' ? 'bg-transparent' : 'dashboard-canvas')}>
+        <main className={cn('flex-1 overflow-auto p-4 sm:p-5 lg:p-6', portal === 'super-admin' ? 'bg-transparent' : 'dashboard-canvas')}>
           <Outlet />
         </main>
       </div>

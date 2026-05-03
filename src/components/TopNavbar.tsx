@@ -28,10 +28,10 @@ export default function TopNavbar({
   return (
     <header
       className={cn(
-        'sticky top-0 z-20 h-[74px] border-b px-4 sm:px-6',
+        'sticky top-0 z-20 h-[66px] border-b px-4 sm:px-6',
         activePortal === 'super-admin'
           ? 'border-white/10 bg-slate-950/80 backdrop-blur'
-          : 'glass-topbar border-border/70',
+          : 'glass-topbar border-border',
         className,
       )}
     >
@@ -43,7 +43,7 @@ export default function TopNavbar({
           <Button
             variant="ghost"
             size="icon"
-            className="hidden rounded-xl border border-border/70 bg-card shadow-[var(--shadow-surface)] md:inline-flex"
+            className="hidden rounded-lg border border-border bg-card md:inline-flex"
             onClick={onSidebarToggle}
             aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -54,10 +54,10 @@ export default function TopNavbar({
             <Input
               placeholder={activePortal === 'super-admin' ? 'Search company, admin, or tenant' : 'Search'}
               className={cn(
-                'h-11 rounded-2xl pl-9 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]',
+                'h-10 rounded-lg pl-9',
                 activePortal === 'super-admin'
                   ? 'border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400'
-                  : 'border-border/80 bg-secondary/60',
+                  : 'border-border bg-background',
               )}
             />
           </div>
@@ -66,14 +66,14 @@ export default function TopNavbar({
         {user && (
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 md:flex">
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border border-border/70 bg-card shadow-[var(--shadow-surface)]">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg border border-border bg-card">
                 <Moon className="h-4 w-4 text-muted-foreground" />
               </Button>
-              <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full border border-border/70 bg-card shadow-[var(--shadow-surface)]">
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-lg border border-border bg-card">
                 <Bell className="h-4 w-4 text-muted-foreground" />
                 <span className="absolute right-2 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-semibold text-white">1</span>
               </Button>
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border border-border/70 bg-card shadow-[var(--shadow-surface)]">
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg border border-border bg-card">
                 {activePortal === 'super-admin' ? (
                   <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                 ) : (
@@ -81,7 +81,7 @@ export default function TopNavbar({
                 )}
               </Button>
             </div>
-            <div className="hidden items-center gap-2 rounded-2xl border border-border/70 bg-card px-3 py-2 text-sm shadow-[var(--shadow-surface)] lg:flex">
+            <div className="hidden items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm lg:flex">
               <UserIcon className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="font-medium leading-none text-foreground">{user.fullName}</p>
@@ -94,7 +94,7 @@ export default function TopNavbar({
                 {activePortal === 'super-admin' ? 'Platform' : user.companyStatus ?? 'Active'}
               </Badge>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => void logout()} className="rounded-xl" aria-label="Logout">
+            <Button variant="ghost" size="icon" onClick={() => void logout()} className="rounded-lg" aria-label="Logout">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>

@@ -3,12 +3,22 @@ export type ItemStatusFilter = 'all' | 'active' | 'inactive';
 export type ItemListSortBy = 'storeName' | 'tallyName' | 'createdAt' | 'updatedAt';
 export type SortOrder = 'asc' | 'desc';
 
+export interface ItemCategoryOption {
+  id: string;
+  name: string;
+  itemType: ItemType;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ItemRecord {
   id: string;
   storeName: string;
   tallyName: string;
   sku: string;
   itemType: ItemType;
+  categoryId: string;
   category: string;
   baseUnit: string;
   hsnCode: string;

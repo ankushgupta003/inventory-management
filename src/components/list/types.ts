@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
-export type ListVisualPreset = 'standard' | 'premium';
+export type ListVisualPreset = 'standard' | 'premium' | 'simple';
 export type TableDensity = 'comfortable' | 'compact';
 
 export interface ListPageKpi {

@@ -132,6 +132,24 @@ export interface DesignationUpsertPayload {
   isActive?: boolean;
 }
 
+export type ItemCategoryItemType = 'raw' | 'finished';
+
+export interface ItemCategoryRecord {
+  id: string;
+  companyId: string;
+  name: string;
+  itemType: ItemCategoryItemType;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemCategoryUpsertPayload {
+  name: string;
+  itemType: ItemCategoryItemType;
+  isActive?: boolean;
+}
+
 export interface RoleRecord {
   id: string;
   companyId: string;

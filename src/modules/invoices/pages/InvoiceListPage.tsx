@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FileCheck, Printer, ReceiptText, Wallet } from 'lucide-react';
+import { Download, Eye, Printer, ReceiptText, RotateCcw, Wallet } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
 import CompactSelect from '@/components/CompactSelect';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { invoiceApi } from '../services/invoiceApi';
 import type { InvoiceRecord, InvoiceStatus } from '../types';
@@ -76,19 +76,13 @@ export default function InvoiceListPage() {
     });
   }, [dateFrom, dateTo, records, search, status]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
+  const summary = useMemo(() => {
     const completed = records.filter((record) => record.status === 'completed').length;
     const partial = records.filter((record) => record.status === 'partial').length;
     const totalQty = records.reduce((sum, record) => sum + record.totalQuantity, 0);
     const totalAmount = records.reduce((sum, record) => sum + invoiceTotal(record), 0);
 
-    return [
-      { id: 'total', label: 'Total Invoices', value: records.length.toLocaleString('en-IN'), icon: ReceiptText, tone: 'blue' },
-      { id: 'completed', label: 'Completed', value: completed.toLocaleString('en-IN'), icon: FileCheck, tone: 'green' },
-      { id: 'partial', label: 'Partial', value: partial.toLocaleString('en-IN'), icon: FileCheck, tone: 'orange' },
-      { id: 'amount', label: 'Billed Amount', value: `INR ${totalAmount.toLocaleString('en-IN')}`, icon: Wallet, tone: 'purple' },
-      { id: 'qty', label: 'Invoice Qty', value: totalQty.toLocaleString('en-IN'), icon: Wallet, tone: 'blue' },
-    ].slice(0, 4);
+    return { completed, partial, totalQty, totalAmount };
   }, [records]);
 
   const exportCsv = () => {
@@ -122,33 +116,81 @@ export default function InvoiceListPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Final Invoice"
-        description="Track immutable invoices created from PIs and open the print-ready saved records."
+        description={`${records.length.toLocaleString('en-IN')} invoices. ${summary.completed.toLocaleString('en-IN')} completed, ${summary.partial.toLocaleString('en-IN')} partial, billed amount INR ${summary.totalAmount.toLocaleString('en-IN')}.`}
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Final Invoice' }]}
-        addLabel={canCreateInvoice ? 'Create Invoice' : undefined}
-        onAdd={canCreateInvoice ? () => navigate('/invoices/create') : undefined}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar>
-        <div className="min-w-[220px] flex-1">
-          <Input placeholder="Search invoice no, PI no, or customer" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </div>
-        <CompactSelect
-          value={status}
-          onChange={(value) => setStatus(value as 'all' | InvoiceStatus)}
-          options={[{ value: 'all', label: 'All Status' }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
-          className="w-40"
+      <ListTablePanel
+  title="Invoice Records"
+  description={`${filtered.length} records`}
+  leftContent={
+    <>
+      <div className="table-toolbar-search">
+        <Input
+          placeholder="Search invoice no, PI no, or customer"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-[150px]" />
-        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-[150px]" />
-        <Button variant="outline" onClick={() => { setSearch(''); setStatus('all'); setDateFrom(''); setDateTo(''); }}>
-          Clear
-        </Button>
-      </ListFilterBar>
+      </div>
 
-      <ListTablePanel title="Invoice Records" description={`${filtered.length} records`}>
+      <CompactSelect
+        value={status}
+        onChange={(value) => setStatus(value as 'all' | InvoiceStatus)}
+        options={[
+          { value: 'all', label: 'All Status' },
+          ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
+            value,
+            label,
+          })),
+        ]}
+        className="table-toolbar-control"
+      />
+
+      <Input
+        type="date"
+        value={dateFrom}
+        onChange={(e) => setDateFrom(e.target.value)}
+        className="table-toolbar-date"
+      />
+
+      <Input
+        type="date"
+        value={dateTo}
+        onChange={(e) => setDateTo(e.target.value)}
+        className="table-toolbar-date"
+      />
+
+      <Button
+        variant="outline"
+        className="table-toolbar-button"
+        onClick={() => {
+          setSearch('');
+          setStatus('all');
+          setDateFrom('');
+          setDateTo('');
+        }}
+      >
+        <RotateCcw className="mr-2 h-4 w-4" />
+        Clear
+      </Button>
+    </>
+  }
+  rightContent={
+    <>
+      <Button variant="outline" className="table-toolbar-button" onClick={exportCsv}>
+        <Download className="mr-2 h-4 w-4" />
+        Export CSV
+      </Button>
+
+      {canCreateInvoice && (
+        <Button className="table-toolbar-button" onClick={() => navigate('/invoices/create')}>
+          <ReceiptText className="mr-2 h-4 w-4" />
+          Create Invoice
+        </Button>
+      )}
+    </>
+  }
+>
         <DataTable<InvoiceRecord>
           columns={columns}
           data={filtered}

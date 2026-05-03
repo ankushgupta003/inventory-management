@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Printer, FilePlus2 } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, FilePlus2, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
@@ -105,6 +105,14 @@ export default function QualityRequestViewPage() {
     }
   };
 
+  const nextAction = record.status === 'pending'
+    ? 'Approve the request so testing can start.'
+    : record.status === 'approved' || record.status === 'under_testing'
+      ? 'Open Testing to enter observations and result.'
+      : record.status === 'completed'
+        ? 'Review the report and close the request.'
+        : 'This request is closed. Use source links for traceability.';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -124,12 +132,34 @@ export default function QualityRequestViewPage() {
                 <FilePlus2 className="h-4 w-4 mr-2" /> Testing
               </Button>
             )}
+            {record?.stockMovementId && (
+              <Button variant="outline" onClick={() => navigate(`/stock-movement/${record.stockMovementId}`)}>
+                <ArrowRightLeft className="h-4 w-4 mr-2" /> Source Movement
+              </Button>
+            )}
             <Button onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" /> Print
             </Button>
           </div>
         )}
       />
+
+      <div className="simple-status-summary">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current Status</div>
+            <div className="mt-2 text-lg font-semibold capitalize">{record.status.replace('_', ' ')}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Source</div>
+            <div className="mt-2 text-lg font-semibold">{record.sourceType === 'sampling' ? 'Sampling' : 'Manual'}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Next Action</div>
+            <div className="mt-2 text-sm font-medium text-foreground">{nextAction}</div>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-card border border-border rounded-xl p-6 print:border-0 print:shadow-none space-y-6">
         <FormSection title="Header">
@@ -157,6 +187,31 @@ export default function QualityRequestViewPage() {
             <div>
               <div className="text-muted-foreground">Quantity</div>
               <div className="font-medium">{record.quantity ?? '-'}</div>
+            </div>
+          </div>
+        </FormSection>
+
+        <FormSection title="Source Traceability">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <div className="text-muted-foreground">Source</div>
+              <div className="font-medium">{record.sourceType === 'sampling' ? 'Sampling' : 'Manual'}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Item Type</div>
+              <div className="font-medium capitalize">{record.itemType || '-'}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Source Movement</div>
+              <div className="font-medium">{record.stockMovementNo || '-'}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Production Batch</div>
+              <div className="font-medium">{record.productionBatchNo || '-'}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Production No</div>
+              <div className="font-medium">{record.productionNo || '-'}</div>
             </div>
           </div>
         </FormSection>

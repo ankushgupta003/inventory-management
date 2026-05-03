@@ -53,6 +53,7 @@ let mockMovements: StockMovementRecord[] = [
       },
     ],
     issuedBy: 'Store Admin',
+    qualityRequests: [],
     createdAt: '2026-04-04',
   },
 ];
@@ -92,6 +93,16 @@ export const stockMovementApi = {
           quantity: item.quantity,
           remarks: item.remarks,
         })),
+        qualityRequests:
+          payload.type === 'sampling'
+            ? payload.items.map((item, index) => ({
+                id: `qr-${Date.now()}-${index + 1}`,
+                requestNo: `QREQ-${String(Date.now() + index).slice(-5)}`,
+                status: 'pending',
+                itemName: '',
+                batchNo: item.batchNo,
+              }))
+            : [],
         createdAt: new Date().toISOString(),
       };
       mockMovements = [created, ...mockMovements];
@@ -123,6 +134,7 @@ export const stockMovementApi = {
     }),
   createSampling: (data: {
     date: string;
+    productionBatchId?: string;
     fromLocation: string;
     toLocation: string;
     itemId: string;
@@ -134,6 +146,7 @@ export const stockMovementApi = {
     stockMovementApi.create({
       type: 'sampling',
       date: data.date,
+      productionBatchId: data.productionBatchId,
       fromLocation: data.fromLocation,
       toLocation: data.toLocation,
       issuedBy: data.issuedBy,

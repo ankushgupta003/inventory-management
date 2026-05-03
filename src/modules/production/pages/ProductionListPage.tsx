@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Factory, FlaskConical, PackageCheck } from 'lucide-react';
+import { Download, Eye, Plus, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { productionApi } from '../services/productionApi';
 import type { ProductionBatch } from '../types';
@@ -63,18 +63,12 @@ export default function ProductionListPage() {
     );
   }, [batches, search]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
-    const total = batches.length;
-    const inProcess = batches.filter((batch) => batch.status === 'IN_PROCESS').length;
-    const qaPending = batches.filter((batch) => batch.status === 'QA_PENDING').length;
-    const released = batches.filter((batch) => batch.status === 'RELEASED').length;
-    return [
-      { id: 'total', label: 'Total Batches', value: total.toLocaleString('en-IN'), icon: Factory, tone: 'blue' },
-      { id: 'process', label: 'In Process', value: inProcess.toLocaleString('en-IN'), icon: PackageCheck, tone: 'orange' },
-      { id: 'qa', label: 'QA Pending', value: qaPending.toLocaleString('en-IN'), icon: FlaskConical, tone: 'purple' },
-      { id: 'released', label: 'Released', value: released.toLocaleString('en-IN'), icon: PackageCheck, tone: 'green' },
-    ];
-  }, [batches]);
+  const counts = useMemo(() => ({
+    total: batches.length,
+    inProcess: batches.filter((batch) => batch.status === 'IN_PROCESS').length,
+    qaPending: batches.filter((batch) => batch.status === 'QA_PENDING').length,
+    released: batches.filter((batch) => batch.status === 'RELEASED').length,
+  }), [batches]);
 
   const exportCsv = () => {
     exportCsvFile(`production-list-${csvDateSuffix()}.csv`, [
@@ -105,26 +99,37 @@ export default function ProductionListPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Production Batches"
-        description="Manage batch lifecycle, MRS, BMR, QA, and release readiness."
+        description={`${counts.total.toLocaleString('en-IN')} batches. ${counts.inProcess.toLocaleString('en-IN')} in process, ${counts.qaPending.toLocaleString('en-IN')} QA pending, ${counts.released.toLocaleString('en-IN')} released.`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Production Batches' },
         ]}
-        addLabel="Create Batch"
-        onAdd={() => navigate('/production/create')}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar>
-        <div className="min-w-[240px] flex-1">
-          <Input placeholder="Search by production no, batch no, or product" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </div>
-        <Button variant="outline" onClick={() => setSearch('')}>Clear</Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="Production Batches" description={`${filtered.length} record(s)`}>
+      <ListTablePanel
+        title="Production Batches"
+        description={`${filtered.length} record(s)`}
+        leftContent={(
+          <>
+            <div className="table-toolbar-search">
+              <Input placeholder="Search by production no, batch no, or product" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+            <Button className="table-toolbar-button" variant="outline" onClick={() => setSearch('')}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={(
+          <>
+            <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+              <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
+            <Button className="table-toolbar-button" onClick={() => navigate('/production/create')}>
+              <Plus className="mr-2 h-4 w-4" /> Create Batch
+            </Button>
+          </>
+        )}
+      >
         <DataTable<ProductionBatch>
           columns={columns}
           data={filtered}

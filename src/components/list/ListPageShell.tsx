@@ -24,20 +24,22 @@ export default function ListPageShell({
   onAdd,
   onExport,
   extraActions,
-  preset = 'premium',
+  preset = 'simple',
 }: ListPageShellProps) {
+  const hasActions = onExport || (onAdd && addLabel) || extraActions;
+
   return (
     <PageHeader
       title={title}
       description={description}
       breadcrumbs={breadcrumbs}
-      action={(
+      action={hasActions ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
           {onExport ? (
             <Button
               variant="outline"
               className={cn(
-                'rounded-xl px-4',
+                'rounded-lg px-3',
                 preset === 'premium' && 'border-border/80 bg-card/90 shadow-[var(--shadow-surface)] hover:bg-muted/70'
               )}
               onClick={onExport}
@@ -48,7 +50,7 @@ export default function ListPageShell({
           {onAdd && addLabel ? (
             <Button
               className={cn(
-                'rounded-xl px-4',
+                'rounded-lg px-3',
                 preset === 'premium' && 'bg-gradient-to-r from-[#2d63ff] to-[#6f61ff] text-white shadow-[0_16px_28px_-18px_rgba(45,99,255,0.95)] hover:opacity-95'
               )}
               onClick={onAdd}
@@ -58,7 +60,7 @@ export default function ListPageShell({
           ) : null}
           {extraActions}
         </div>
-      )}
+      ) : undefined}
     />
   );
 }

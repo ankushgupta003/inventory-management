@@ -21,14 +21,14 @@ export default function FormSection({
 }: FormSectionProps) {
   return (
     <SurfaceCard className={cn('section-rhythm', className)} padding="none">
-      <div className="flex flex-col gap-2 border-b border-border/80 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="space-y-1">
-          <h3 className="text-lg font-medium text-foreground">{title}</h3>
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
-      <div className={cn('space-y-4 p-5', contentClassName)}>
+      <div className={cn('space-y-4 p-4', contentClassName)}>
         {children}
       </div>
     </SurfaceCard>

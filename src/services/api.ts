@@ -14,6 +14,8 @@ import type {
   DepartmentUpsertPayload,
   DesignationRecord,
   DesignationUpsertPayload,
+  ItemCategoryRecord,
+  ItemCategoryUpsertPayload,
   PermissionCatalog,
   RoleRecord,
   RoleUpsertPayload,
@@ -289,6 +291,11 @@ export const companyAdminAPI = {
     unwrapData(api.post<ApiEnvelope<DesignationRecord>>('/admin/designations', payload)),
   updateDesignation: (id: string, payload: Partial<DesignationUpsertPayload>) =>
     unwrapData(api.patch<ApiEnvelope<DesignationRecord>>(`/admin/designations/${id}`, payload)),
+  getItemCategories: () => unwrapData(api.get<ApiEnvelope<ItemCategoryRecord[]>>('/admin/item-categories')),
+  createItemCategory: (payload: ItemCategoryUpsertPayload) =>
+    unwrapData(api.post<ApiEnvelope<ItemCategoryRecord>>('/admin/item-categories', payload)),
+  updateItemCategory: (id: string, payload: Partial<ItemCategoryUpsertPayload>) =>
+    unwrapData(api.patch<ApiEnvelope<ItemCategoryRecord>>(`/admin/item-categories/${id}`, payload)),
   getRoles: () => unwrapData(api.get<ApiEnvelope<RoleRecord[]>>('/admin/roles')),
   createRole: (payload: RoleUpsertPayload) =>
     unwrapData(api.post<ApiEnvelope<RoleRecord>>('/admin/roles', payload)),

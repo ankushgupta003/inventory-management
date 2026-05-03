@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, ClipboardList, Eye, PackageCheck } from 'lucide-react';
+import { CheckCircle, Download, Eye, PackageCheck, Plus, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import CompactSelect from '@/components/CompactSelect';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import StatusBadge from '@/components/StatusBadge';
@@ -27,18 +27,12 @@ export default function MRSListPage() {
     setConfirmAction(null);
   };
 
-  const kpis: ListPageKpi[] = useMemo(() => {
+  const summary = useMemo(() => {
     const pending = records.filter((r) => r.status === 'pending').length;
     const approved = records.filter((r) => r.status === 'approved').length;
     const issued = records.filter((r) => r.status === 'issued').length;
     const qty = records.reduce((sum, r) => sum + r.items.reduce((s, i) => s + (i.qtyRequested || 0), 0), 0);
-    return [
-      { id: 'all', label: 'Total MRS', value: records.length.toLocaleString('en-IN'), icon: ClipboardList, tone: 'blue' },
-      { id: 'pending', label: 'Pending', value: pending.toLocaleString('en-IN'), icon: ClipboardList, tone: 'orange' },
-      { id: 'approved', label: 'Approved', value: approved.toLocaleString('en-IN'), icon: CheckCircle, tone: 'purple' },
-      { id: 'qty', label: 'Requested Qty', value: qty.toLocaleString('en-IN'), icon: PackageCheck, tone: 'green' },
-      { id: 'issued', label: 'Issued', value: issued.toLocaleString('en-IN'), icon: PackageCheck, tone: 'green' },
-    ].slice(0, 4);
+    return { pending, approved, issued, qty };
   }, [records]);
 
   const exportCsv = () => {
@@ -76,38 +70,49 @@ export default function MRSListPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Material Requisition Slip"
-        description="Track requisitions from request to issue completion."
+        description={`${records.length.toLocaleString('en-IN')} MRS records. ${summary.pending.toLocaleString('en-IN')} pending, ${summary.approved.toLocaleString('en-IN')} approved, ${summary.issued.toLocaleString('en-IN')} issued.`}
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'MRS' }]}
-        addLabel="Create MRS"
-        onAdd={() => navigate('/mrs/create')}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar>
-        <div className="min-w-[240px] flex-1">
-          <Input
-            placeholder="Search MRS no or department"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          />
-        </div>
-        <CompactSelect
-          value={filters.status}
-          onChange={(value) => setFilters({ ...filters, status: value as MRSStatus | 'all' })}
-          options={[
-            { value: 'all', label: 'All Status' },
-            { value: 'pending', label: 'Pending' },
-            { value: 'approved', label: 'Approved' },
-            { value: 'issued', label: 'Issued' },
-          ]}
-          className="w-40"
-        />
-        <Button variant="outline" onClick={() => setFilters({ search: '', status: 'all' })}>Clear</Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="MRS Records" description={`${records.length} records`}>
+      <ListTablePanel
+        title="MRS Records"
+        description={`${records.length} records`}
+        leftContent={(
+          <>
+            <div className="table-toolbar-search">
+              <Input
+                placeholder="Search MRS no or department"
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              />
+            </div>
+            <CompactSelect
+              value={filters.status}
+              onChange={(value) => setFilters({ ...filters, status: value as MRSStatus | 'all' })}
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'issued', label: 'Issued' },
+              ]}
+              className="table-toolbar-control-sm"
+            />
+            <Button className="table-toolbar-button" variant="outline" onClick={() => setFilters({ search: '', status: 'all' })}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={(
+          <>
+            <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+              <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
+            <Button className="table-toolbar-button" onClick={() => navigate('/mrs/create')}>
+              <Plus className="mr-2 h-4 w-4" /> Create MRS
+            </Button>
+          </>
+        )}
+      >
         <DataTable<MRSRecord>
           columns={columns}
           data={records}

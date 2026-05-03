@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FileCheck, Lock, Pencil, ReceiptText, Wallet } from 'lucide-react';
+import { Download, Eye, FileCheck, Lock, Pencil, Plus, RotateCcw, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
 import CompactSelect from '@/components/CompactSelect';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { piApi } from '../services/piApi';
 import type { PIStatus, ProformaInvoiceRecord } from '../types';
@@ -88,7 +88,7 @@ export default function PIListPage() {
     });
   }, [dateFrom, dateTo, records, search, status]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
+  const summary = useMemo(() => {
     const totalAmount = records.reduce((sum, record) => sum + record.totalAmount, 0);
     const pendingCount = records.filter((record) => record.status === 'pending').length;
     const partialCount = records.filter((record) => record.status === 'partial').length;
@@ -96,13 +96,7 @@ export default function PIListPage() {
       .filter((record) => record.status === 'pending' || record.status === 'partial')
       .reduce((sum, record) => sum + remainingQtyForRecord(record), 0);
 
-    return [
-      { id: 'total', label: 'Total PI', value: records.length.toLocaleString('en-IN'), icon: ReceiptText, tone: 'blue' },
-      { id: 'pending', label: 'Pending', value: pendingCount.toLocaleString('en-IN'), icon: Lock, tone: 'orange' },
-      { id: 'partial', label: 'Partial', value: partialCount.toLocaleString('en-IN'), icon: FileCheck, tone: 'purple' },
-      { id: 'open-qty', label: 'Open Qty', value: openQty.toLocaleString('en-IN'), icon: Wallet, tone: 'green' },
-      { id: 'amount', label: 'Total Amount', value: `INR ${totalAmount.toLocaleString('en-IN')}`, icon: Wallet, tone: 'green' },
-    ].slice(0, 4);
+    return { totalAmount, pendingCount, partialCount, openQty };
   }, [records]);
 
   const exportCsv = () => {
@@ -146,33 +140,44 @@ export default function PIListPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Proforma Invoice"
-        description="Manage PI lifecycle, partial conversion, and manual close before final invoicing."
+        description={`${records.length.toLocaleString('en-IN')} PI records. ${summary.pendingCount.toLocaleString('en-IN')} pending, ${summary.partialCount.toLocaleString('en-IN')} partial, open qty ${summary.openQty.toLocaleString('en-IN')}.`}
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Proforma Invoice' }]}
-        addLabel={canCreatePi ? 'Create PI' : undefined}
-        onAdd={canCreatePi ? () => navigate('/proforma-invoices/create') : undefined}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar>
-        <div className="min-w-[220px] flex-1">
-          <Input placeholder="Search PI no or customer" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </div>
-        <CompactSelect
-          value={status}
-          onChange={(value) => setStatus(value as 'all' | PIStatus)}
-          options={[{ value: 'all', label: 'All Status' }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
-          className="w-40"
-        />
-        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-[150px]" />
-        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-[150px]" />
-        <Button variant="outline" onClick={() => { setSearch(''); setStatus('all'); setDateFrom(''); setDateTo(''); }}>
-          Clear
-        </Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="PI Records" description={`${filtered.length} records`}>
+      <ListTablePanel
+        title="PI Records"
+        description={`${filtered.length} records`}
+        leftContent={(
+          <>
+            <div className="table-toolbar-search">
+              <Input placeholder="Search PI no or customer" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+            <CompactSelect
+              value={status}
+              onChange={(value) => setStatus(value as 'all' | PIStatus)}
+              options={[{ value: 'all', label: 'All Status' }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
+              className="table-toolbar-control-sm"
+            />
+            <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="table-toolbar-date" />
+            <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="table-toolbar-date" />
+            <Button className="table-toolbar-button" variant="outline" onClick={() => { setSearch(''); setStatus('all'); setDateFrom(''); setDateTo(''); }}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={(
+          <>
+            <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+              <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
+            {canCreatePi ? (
+              <Button className="table-toolbar-button" onClick={() => navigate('/proforma-invoices/create')}>
+                <Plus className="mr-2 h-4 w-4" /> Create PI
+              </Button>
+            ) : null}
+          </>
+        )}
+      >
         <DataTable<ProformaInvoiceRecord>
           columns={columns}
           data={filtered}

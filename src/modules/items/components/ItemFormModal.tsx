@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { itemFormSchema, defaultItemValues, type ItemFormValues } from '../schemas/itemSchema';
-import type { ItemRecord } from '../types';
+import type { ItemCategoryOption, ItemRecord } from '../types';
 
 const UNITS = [
   { value: 'kg', label: 'Kilogram (kg)' },
@@ -24,25 +24,22 @@ const UNITS = [
   { value: 'bag', label: 'Bag' },
 ];
 
-const CATEGORIES = [
-  'Metal', 'Electrical', 'Packaging', 'Chemical', 'Spare Parts',
-  'Assembly', 'Consumable', 'Other',
-];
-
 interface Props {
   open: boolean;
   onClose: () => void;
   onSave: (values: ItemFormValues) => void;
+  categoryOptions: ItemCategoryOption[];
   editingItem?: ItemRecord | null;
 }
 
-export default function ItemFormModal({ open, onClose, onSave, editingItem }: Props) {
+export default function ItemFormModal({ open, onClose, onSave, categoryOptions, editingItem }: Props) {
   const {
     register,
     handleSubmit,
     control,
     watch,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ItemFormValues>({
     resolver: zodResolver(itemFormSchema),
@@ -56,7 +53,7 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
         tallyName: editingItem.tallyName,
         sku: editingItem.sku || '',
         itemType: editingItem.itemType,
-        category: editingItem.category || '',
+        categoryId: editingItem.categoryId || '',
         baseUnit: editingItem.baseUnit,
         hsnCode: editingItem.hsnCode || '',
         gstRate: editingItem.gstRate,
@@ -64,6 +61,25 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
       } : defaultItemValues);
     }
   }, [open, editingItem, reset]);
+
+  const selectedItemType = watch('itemType');
+  const selectedCategoryId = watch('categoryId');
+
+  const filteredCategories = useMemo(() => {
+    return categoryOptions.filter((category) => {
+      if (category.itemType !== selectedItemType) return false;
+      if (category.isActive) return true;
+      return category.id === selectedCategoryId;
+    });
+  }, [categoryOptions, selectedCategoryId, selectedItemType]);
+
+  useEffect(() => {
+    if (!selectedCategoryId) return;
+    const matchingCategory = categoryOptions.find((category) => category.id === selectedCategoryId);
+    if (!matchingCategory || matchingCategory.itemType !== selectedItemType) {
+      setValue('categoryId', '', { shouldDirty: true, shouldValidate: true });
+    }
+  }, [categoryOptions, selectedCategoryId, selectedItemType, setValue]);
 
   const onSubmit = (values: ItemFormValues) => onSave(values);
 
@@ -116,12 +132,16 @@ export default function ItemFormModal({ open, onClose, onSave, editingItem }: Pr
               </div>
               <div className="space-y-1.5">
                 <Label>Category</Label>
-                <Controller name="category" control={control} render={({ field }) => (
+                <Controller name="categoryId" control={control} render={({ field }) => (
                   <Select value={field.value || '_none'} onValueChange={(v) => field.onChange(v === '_none' ? '' : v)}>
                     <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_none">None</SelectItem>
-                      {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {filteredCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}{category.isActive ? '' : ' (inactive)'}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )} />

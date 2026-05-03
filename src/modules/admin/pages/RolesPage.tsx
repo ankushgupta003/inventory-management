@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Download, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import PanelCard from '@/components/PanelCard';
@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { companyAdminAPI } from '@/services/api';
 import { getErrorMessage } from '@/lib/apiError';
+import { csvDateSuffix, exportCsvFile } from '@/lib/csv';
 import type { PermissionCatalog, PermissionKey, RoleRecord, RoleUpsertPayload } from '@/types';
 
 const emptyForm: RoleUpsertPayload = {
@@ -38,6 +39,7 @@ export default function RolesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<RoleRecord | null>(null);
   const [form, setForm] = useState<RoleUpsertPayload>(emptyForm);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -66,6 +68,19 @@ export default function RolesPage() {
       items: catalog.actions.map((action) => `${module}.${action}` as PermissionKey),
     }));
   }, [catalog]);
+
+  const filteredRoles = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return roles;
+    return roles.filter((record) => `${record.name} ${record.description || ''}`.toLowerCase().includes(query));
+  }, [roles, search]);
+
+  const exportCsv = () => {
+    exportCsvFile(`roles-${csvDateSuffix()}.csv`, [
+      ['Role', 'Description', 'Permissions', 'Status'],
+      ...filteredRoles.map((record) => [record.name, record.description || '-', String(record.permissions.length), record.isActive ? 'Active' : 'Inactive']),
+    ]);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -141,16 +156,25 @@ export default function RolesPage() {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Roles' },
         ]}
-        action={(
-          <Button className="rounded-xl" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Role
-          </Button>
-        )}
       />
 
       <PanelCard title="Role Master" subtitle="Roles available for company users">
         <DataTable
+          toolbar={(
+            <div className="table-toolbar">
+              <div className="table-toolbar-filters">
+                <Input placeholder="Search roles..." value={search} onChange={(event) => setSearch(event.target.value)} className="table-toolbar-search" />
+              </div>
+              <div className="table-toolbar-actions">
+                <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+                  <Download className="mr-2 h-4 w-4" /> Export CSV
+                </Button>
+                <Button className="table-toolbar-button" onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Role
+                </Button>
+              </div>
+            </div>
+          )}
           columns={[
             { key: 'name', header: 'Role', render: (row: RoleRecord) => <span className="font-medium">{row.name}</span> },
             { key: 'description', header: 'Description', render: (row: RoleRecord) => row.description || '-' },
@@ -163,9 +187,7 @@ export default function RolesPage() {
               ),
             },
           ]}
-          data={roles}
-          searchKey="name"
-          searchPlaceholder="Search roles..."
+          data={filteredRoles}
           isLoading={loading}
           actions={(row) => (
             <div className="flex items-center justify-end gap-1">

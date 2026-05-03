@@ -111,15 +111,17 @@ export default function StockMovementViewPage() {
             <div className="text-muted-foreground">Type</div>
             <div className="font-medium">{typeLabel[record.type]}</div>
           </div>
+          {record.productionBatchNo && (
+            <div className="space-y-1">
+              <div className="text-muted-foreground">Production Batch</div>
+              <div className="font-medium">{record.productionBatchNo}</div>
+            </div>
+          )}
           {record.type === 'issue' && (
             <>
               <div className="space-y-1">
                 <div className="text-muted-foreground">MRS</div>
                 <div className="font-medium">{record.mrsNo || '-'}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground">Production Batch</div>
-                <div className="font-medium">{record.productionBatchNo || '-'}</div>
               </div>
             </>
           )}
@@ -176,6 +178,33 @@ export default function StockMovementViewPage() {
           </table>
         </div>
       </FormSection>
+
+      {record.qualityRequests?.length ? (
+        <FormSection
+          title="Linked Sample Reports"
+          description="Quality requests automatically created from this sampling movement."
+          className="print:hidden"
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            {record.qualityRequests.map((request) => (
+              <button
+                key={request.id}
+                type="button"
+                className="rounded-xl border border-border bg-background px-4 py-3 text-left transition hover:border-primary/40 hover:bg-muted/30"
+                onClick={() => navigate(`/quality-requests/${request.id}`)}
+              >
+                <div className="text-sm font-semibold text-primary">{request.requestNo}</div>
+                <div className="text-sm text-muted-foreground">
+                  {request.itemName} | {request.batchNo}
+                </div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {request.status.replace('_', ' ')}
+                </div>
+              </button>
+            ))}
+          </div>
+        </FormSection>
+      ) : null}
 
       <div className="hidden print:block">
         {record.type === 'issue' && <IssuePrintView record={record} items={items} />}

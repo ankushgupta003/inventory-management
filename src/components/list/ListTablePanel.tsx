@@ -6,7 +6,12 @@ import type { ListVisualPreset } from './types';
 interface ListTablePanelProps {
   title: string;
   description?: string;
-  actions?: ReactNode;
+
+  leftContent?: ReactNode;
+  rightContent?: ReactNode;
+  toolbar?: ReactNode;
+  headerActions?: ReactNode;
+
   children: ReactNode;
   preset?: ListVisualPreset;
 }
@@ -14,19 +19,44 @@ interface ListTablePanelProps {
 export default function ListTablePanel({
   title,
   description,
-  actions,
+  leftContent,
+  rightContent,
+  toolbar,
+  headerActions,
   children,
-  preset = 'premium',
+  preset = 'simple',
 }: ListTablePanelProps) {
+  const resolvedToolbar = toolbar ?? (
+    leftContent ? (
+      <div className="table-toolbar-inline w-full">
+        {leftContent}
+      </div>
+    ) : null
+  );
+  const resolvedHeaderActions = headerActions ?? (
+    rightContent ? (
+      <div className="table-panel-header-actions">
+        {rightContent}
+      </div>
+    ) : null
+  );
+
   return (
     <PanelCard
       title={title}
       subtitle={description}
-      actions={actions}
+      actions={resolvedHeaderActions}
       className={cn(preset === 'premium' && 'list-table-shell')}
-      bodyClassName={cn('pt-3', preset === 'premium' && 'pt-4')}
+      bodyClassName="pt-4"
     >
-      {children}
+      <div className="space-y-4">
+        {resolvedToolbar ? (
+          <div className="border-b border-border/70 pb-4">
+            {resolvedToolbar}
+          </div>
+        ) : null}
+        {children}
+      </div>
     </PanelCard>
   );
 }

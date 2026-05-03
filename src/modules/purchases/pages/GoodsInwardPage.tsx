@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import TableActionButton from '@/components/TableActionButton';
+import FlexibleDateInput from '@/components/FlexibleDateInput';
 import FormSection from '@/components/FormSection';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,38 @@ const emptyRow = {
   mfgDate: '',
   expiryDate: '',
   rate: 0,
+  taxableValue: 0,
+  cgstRate: 0,
+  sgstRate: 0,
+  igstRate: 0,
   remarks: '',
+};
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const computeLineTotals = (row?: GINFormValues['items'][number]) => {
+  if (!row) {
+    return {
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      lineTotalAmount: 0,
+    };
+  }
+
+  const taxableValue = Number(row.taxableValue || 0);
+  const cgstAmount = Number(((taxableValue * (row.cgstRate || 0)) / 100).toFixed(2));
+  const sgstAmount = Number(((taxableValue * (row.sgstRate || 0)) / 100).toFixed(2));
+  const igstAmount = Number(((taxableValue * (row.igstRate || 0)) / 100).toFixed(2));
+  const lineTotalAmount = Number((taxableValue + cgstAmount + sgstAmount + igstAmount).toFixed(2));
+
+  return {
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    lineTotalAmount,
+  };
 };
 
 export default function GoodsInwardPage() {
@@ -97,18 +129,35 @@ export default function GoodsInwardPage() {
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
 
-  const lineValue = (idx: number) => {
-    const row = watchedItems?.[idx];
-    return row ? row.acceptedQty * row.rate : 0;
-  };
+  const lineAmounts = watchedItems?.map((row) => computeLineTotals(row)) ?? [];
+  const totals = lineAmounts.reduce(
+    (acc, row, index) => ({
+      taxableValue: acc.taxableValue + Number(watchedItems[index]?.taxableValue || 0),
+      cgstAmount: acc.cgstAmount + row.cgstAmount,
+      sgstAmount: acc.sgstAmount + row.sgstAmount,
+      igstAmount: acc.igstAmount + row.igstAmount,
+      lineTotalAmount: acc.lineTotalAmount + row.lineTotalAmount,
+    }),
+    {
+      taxableValue: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      lineTotalAmount: 0,
+    },
+  );
 
-  const grandTotal = watchedItems?.reduce((sum, row) => sum + row.acceptedQty * row.rate, 0) ?? 0;
+  const syncTaxableValue = (idx: number, acceptedQty: number, rate: number) => {
+    const nextTaxableValue = Number((Math.max(0, acceptedQty) * Math.max(0, rate)).toFixed(2));
+    setValue(`items.${idx}.taxableValue`, nextTaxableValue, { shouldDirty: true, shouldValidate: true });
+  };
 
   const handleReceivedChange = (idx: number, value: number) => {
     const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
     setValue(`items.${idx}.receivedQty`, safeValue, { shouldDirty: true, shouldValidate: true });
     setValue(`items.${idx}.acceptedQty`, safeValue, { shouldDirty: true, shouldValidate: true });
     setValue(`items.${idx}.rejectedQty`, 0, { shouldDirty: true, shouldValidate: true });
+    syncTaxableValue(idx, safeValue, watchedItems[idx]?.rate ?? 0);
   };
 
   const handleAcceptedChange = (idx: number, value: number) => {
@@ -117,6 +166,13 @@ export default function GoodsInwardPage() {
     const accepted = Math.min(safeValue, received);
     setValue(`items.${idx}.acceptedQty`, accepted, { shouldDirty: true, shouldValidate: true });
     setValue(`items.${idx}.rejectedQty`, received - accepted, { shouldDirty: true, shouldValidate: true });
+    syncTaxableValue(idx, accepted, watchedItems[idx]?.rate ?? 0);
+  };
+
+  const handleRateChange = (idx: number, value: number) => {
+    const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+    setValue(`items.${idx}.rate`, safeValue, { shouldDirty: true, shouldValidate: true });
+    syncTaxableValue(idx, watchedItems[idx]?.acceptedQty ?? 0, safeValue);
   };
 
   const onSubmit = async (data: GINFormValues) => {
@@ -139,7 +195,7 @@ export default function GoodsInwardPage() {
     <div className="space-y-7 animate-fade-in">
       <PageHeader
         title="Goods Inward Note (GIN)"
-        description="Capture inbound purchase receipts with accepted/rejected stock split."
+        description="Capture inbound purchase receipts with taxable value and GST breakup."
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Inventory', href: '/purchases' },
@@ -207,7 +263,7 @@ export default function GoodsInwardPage() {
 
         <FormSection
           title="Line Items"
-          description="Only accepted quantity contributes to stock."
+          description="Accepted quantity drives the default taxable value. Row dates open a picker, and you can switch to month-only mode when the supplier provides MM/YYYY."
           actions={(
             <Button type="button" variant="outline" size="sm" onClick={() => append({ ...emptyRow })}>
               <Plus className="mr-1 h-3.5 w-3.5" /> Add Row
@@ -218,7 +274,28 @@ export default function GoodsInwardPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  {['Item *', 'ULP Qty', 'Bill Qty', 'Received', 'Accepted', 'Rejected', 'Batch *', 'MFG Date *', 'Expiry *', 'Rate (Rs)', 'Value', 'Remarks', ''].map((header) => (
+                  {[
+                    'Item *',
+                    'ULP Qty',
+                    'Bill Qty',
+                    'Received',
+                    'Accepted',
+                    'Rejected',
+                    'Batch *',
+                    'MFG Date',
+                    'Expiry Date',
+                    'Rate',
+                    'Taxable Value',
+                    'CGST %',
+                    'CGST Amt',
+                    'SGST %',
+                    'SGST Amt',
+                    'IGST %',
+                    'IGST Amt',
+                    'Line Total',
+                    'Remarks',
+                    '',
+                  ].map((header) => (
                     <th key={header} className="whitespace-nowrap px-2.5 py-2.5 text-left text-xs font-medium text-muted-foreground">
                       {header}
                     </th>
@@ -228,6 +305,7 @@ export default function GoodsInwardPage() {
               <tbody>
                 {fields.map((field, idx) => {
                   const rowErrors = errors.items?.[idx];
+                  const line = lineAmounts[idx] ?? { cgstAmount: 0, sgstAmount: 0, igstAmount: 0, lineTotalAmount: 0 };
                   return (
                     <tr key={field.id} className="border-b border-border align-top last:border-0">
                       <td className="px-2.5 py-2">
@@ -236,7 +314,7 @@ export default function GoodsInwardPage() {
                           onValueChange={(value) => setValue(`items.${idx}.itemId`, value, { shouldDirty: true, shouldValidate: true })}
                           disabled={loadingOptions}
                         >
-                          <SelectTrigger className={`w-44 ${fieldClass(rowErrors?.itemId)}`}>
+                          <SelectTrigger className={`w-52 ${fieldClass(rowErrors?.itemId)}`}>
                             <SelectValue placeholder={loadingOptions ? 'Loading items...' : 'Select'} />
                           </SelectTrigger>
                           <SelectContent>
@@ -248,12 +326,13 @@ export default function GoodsInwardPage() {
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="px-2.5 py-2"><Input type="number" className="w-[72px]" {...register(`items.${idx}.ulpQty`, { valueAsNumber: true })} /></td>
-                      <td className="px-2.5 py-2"><Input type="number" className="w-[72px]" {...register(`items.${idx}.billQty`, { valueAsNumber: true })} /></td>
+                      <td className="px-2.5 py-2"><Input type="number" step="0.001" className="w-[92px]" {...register(`items.${idx}.ulpQty`, { valueAsNumber: true })} /></td>
+                      <td className="px-2.5 py-2"><Input type="number" step="0.001" className="w-[92px]" {...register(`items.${idx}.billQty`, { valueAsNumber: true })} /></td>
                       <td className="px-2.5 py-2">
                         <Input
                           type="number"
-                          className={`w-[72px] ${fieldClass(rowErrors?.receivedQty)}`}
+                          step="0.001"
+                          className={`w-[92px] ${fieldClass(rowErrors?.receivedQty)}`}
                           {...register(`items.${idx}.receivedQty`, { valueAsNumber: true })}
                           onChange={(event) => handleReceivedChange(idx, Number(event.target.value))}
                         />
@@ -261,18 +340,65 @@ export default function GoodsInwardPage() {
                       <td className="px-2.5 py-2">
                         <Input
                           type="number"
-                          className={`w-[72px] ${fieldClass(rowErrors?.acceptedQty)}`}
+                          step="0.001"
+                          name={`items.${idx}.acceptedQty`}
+                          className={`w-[92px] ${fieldClass(rowErrors?.acceptedQty)}`}
                           value={watchedItems[idx]?.acceptedQty ?? 0}
                           onChange={(event) => handleAcceptedChange(idx, Number(event.target.value))}
                         />
                       </td>
-                      <td className="px-2.5 py-2"><Input type="number" className="w-[72px] bg-muted/50" value={watchedItems[idx]?.rejectedQty ?? 0} readOnly tabIndex={-1} /></td>
-                      <td className="px-2.5 py-2"><Input className={`w-24 ${fieldClass(rowErrors?.batchNo)}`} placeholder="B-001" {...register(`items.${idx}.batchNo`)} /></td>
-                      <td className="px-2.5 py-2"><Input type="date" className={`w-[130px] ${fieldClass(rowErrors?.mfgDate)}`} {...register(`items.${idx}.mfgDate`)} /></td>
-                      <td className="px-2.5 py-2"><Input type="date" className={`w-[130px] ${fieldClass(rowErrors?.expiryDate)}`} {...register(`items.${idx}.expiryDate`)} /></td>
-                      <td className="px-2.5 py-2"><Input type="number" className={`w-20 ${fieldClass(rowErrors?.rate)}`} {...register(`items.${idx}.rate`, { valueAsNumber: true })} /></td>
-                      <td className="px-2.5 py-2 pt-4 text-xs font-medium text-foreground">Rs {lineValue(idx).toLocaleString('en-IN')}</td>
-                      <td className="px-2.5 py-2"><Input className="w-24" placeholder="-" {...register(`items.${idx}.remarks`)} /></td>
+                      <td className="px-2.5 py-2"><Input type="number" step="0.001" className="w-[92px] bg-muted/50" value={watchedItems[idx]?.rejectedQty ?? 0} readOnly tabIndex={-1} /></td>
+                      <td className="px-2.5 py-2"><Input className={`w-32 ${fieldClass(rowErrors?.batchNo)}`} placeholder="B-001" {...register(`items.${idx}.batchNo`)} /></td>
+                      <td className="px-2.5 py-2">
+                        <Controller
+                          control={control}
+                          name={`items.${idx}.mfgDate`}
+                          render={({ field }) => (
+                            <FlexibleDateInput
+                              {...field}
+                              className={`w-32 ${fieldClass(rowErrors?.mfgDate)}`}
+                            />
+                          )}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <Controller
+                          control={control}
+                          name={`items.${idx}.expiryDate`}
+                          render={({ field }) => (
+                            <FlexibleDateInput
+                              {...field}
+                              className={`w-32 ${fieldClass(rowErrors?.expiryDate)}`}
+                            />
+                          )}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          name={`items.${idx}.rate`}
+                          className={`w-28 ${fieldClass(rowErrors?.rate)}`}
+                          value={watchedItems[idx]?.rate ?? 0}
+                          onChange={(event) => handleRateChange(idx, Number(event.target.value))}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className={`w-32 ${fieldClass(rowErrors?.taxableValue)}`}
+                          {...register(`items.${idx}.taxableValue`, { valueAsNumber: true })}
+                        />
+                      </td>
+                      <td className="px-2.5 py-2"><Input type="number" step="0.01" className={`w-24 ${fieldClass(rowErrors?.cgstRate)}`} {...register(`items.${idx}.cgstRate`, { valueAsNumber: true })} /></td>
+                      <td className="px-2.5 py-2 pt-4 text-xs font-medium text-foreground">Rs {formatCurrency(line.cgstAmount)}</td>
+                      <td className="px-2.5 py-2"><Input type="number" step="0.01" className={`w-24 ${fieldClass(rowErrors?.sgstRate)}`} {...register(`items.${idx}.sgstRate`, { valueAsNumber: true })} /></td>
+                      <td className="px-2.5 py-2 pt-4 text-xs font-medium text-foreground">Rs {formatCurrency(line.sgstAmount)}</td>
+                      <td className="px-2.5 py-2"><Input type="number" step="0.01" className={`w-24 ${fieldClass(rowErrors?.igstRate)}`} {...register(`items.${idx}.igstRate`, { valueAsNumber: true })} /></td>
+                      <td className="px-2.5 py-2 pt-4 text-xs font-medium text-foreground">Rs {formatCurrency(line.igstAmount)}</td>
+                      <td className="px-2.5 py-2 pt-4 text-xs font-semibold text-primary">Rs {formatCurrency(line.lineTotalAmount)}</td>
+                      <td className="px-2.5 py-2"><Input className="w-40" placeholder="-" {...register(`items.${idx}.remarks`)} /></td>
                       <td className="px-2.5 py-2 pt-3">
                         {fields.length > 1 ? (
                           <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => remove(idx)} />
@@ -304,9 +430,31 @@ export default function GoodsInwardPage() {
         </FormSection>
 
         <FormSection title="Review & Submit">
-          <div className="flex items-center justify-between">
-            <div className="text-lg font-semibold text-foreground">
-              Total (Accepted): <span className="text-primary">Rs {grandTotal.toLocaleString('en-IN')}</span>
+          <div className="grid gap-4 text-sm text-muted-foreground md:grid-cols-5">
+            <div>
+              <div>Taxable Value</div>
+              <div className="text-base font-semibold text-foreground">Rs {formatCurrency(totals.taxableValue)}</div>
+            </div>
+            <div>
+              <div>CGST</div>
+              <div className="text-base font-semibold text-foreground">Rs {formatCurrency(totals.cgstAmount)}</div>
+            </div>
+            <div>
+              <div>SGST</div>
+              <div className="text-base font-semibold text-foreground">Rs {formatCurrency(totals.sgstAmount)}</div>
+            </div>
+            <div>
+              <div>IGST</div>
+              <div className="text-base font-semibold text-foreground">Rs {formatCurrency(totals.igstAmount)}</div>
+            </div>
+            <div>
+              <div>Total Amount</div>
+              <div className="text-base font-semibold text-primary">Rs {formatCurrency(totals.lineTotalAmount)}</div>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-xs text-muted-foreground">
+              Rates support up to 4 decimals. Tax amounts are calculated automatically from the taxable value.
             </div>
             <div className="flex items-center gap-3">
               <Button type="button" variant="outline" onClick={() => navigate('/purchases')}>Cancel</Button>

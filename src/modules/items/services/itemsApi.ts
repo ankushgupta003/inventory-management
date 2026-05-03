@@ -1,5 +1,5 @@
 import api from '@/services/api';
-import type { ItemListParams, ItemListResponse, ItemRecord } from '../types';
+import type { ItemCategoryOption, ItemListParams, ItemListResponse, ItemRecord, ItemType } from '../types';
 import type { ItemFormValues } from '../schemas/itemSchema';
 
 interface ApiEnvelope<T> {
@@ -22,6 +22,10 @@ export const itemsApi = {
     const response = await listItems({ paginate: false, ...params });
     return response.data;
   },
+  getCategoryOptions: (itemType: 'all' | ItemType = 'all') =>
+    api
+      .get<ApiEnvelope<ItemCategoryOption[]>>('/items/category-options', { params: { itemType } })
+      .then((r) => r.data.data),
   getById: (id: string) => api.get<ApiEnvelope<ItemRecord>>(`/items/${id}`).then((r) => r.data.data),
   create: (data: ItemFormValues) => api.post<ApiEnvelope<ItemRecord>>('/items', data).then((r) => r.data.data),
   update: (id: string, data: ItemFormValues) => api.put<ApiEnvelope<ItemRecord>>(`/items/${id}`, data).then((r) => r.data.data),

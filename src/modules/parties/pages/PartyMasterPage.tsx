@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Edit2, Eye, ToggleLeft, ToggleRight, Users } from 'lucide-react';
+import { Download, Edit2, Eye, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '@/components/DataTable';
 import TableActionButton from '@/components/TableActionButton';
 import StatusBadge from '@/components/StatusBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { Button } from '@/components/ui/button';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { getErrorMessage } from '@/lib/apiError';
 import PartyFormModal from '../components/PartyFormModal';
@@ -56,16 +57,6 @@ export default function PartyMasterPage() {
   const toggleParty = parties.find((p) => p.id === toggleId);
   const hasFilters = filters.search !== '' || filters.status !== 'all' || filters.partyType !== 'all';
 
-  const kpis: ListPageKpi[] = useMemo(() => {
-    return [
-      { id: 'total', label: 'Total Parties', value: summary.total.toLocaleString('en-IN'), icon: Users, tone: 'blue' },
-      { id: 'active', label: 'Active', value: summary.active.toLocaleString('en-IN'), icon: Users, tone: 'green' },
-      { id: 'vendors', label: 'Vendors', value: summary.vendors.toLocaleString('en-IN'), icon: Users, tone: 'orange' },
-      { id: 'customers', label: 'Customers', value: summary.customers.toLocaleString('en-IN'), icon: Users, tone: 'purple' },
-      { id: 'both', label: 'Both', value: summary.both.toLocaleString('en-IN'), icon: Users, tone: 'blue' },
-    ].slice(0, 4);
-  }, [summary]);
-
   const exportCsv = () => {
     exportCsvFile(`party-master-list-${csvDateSuffix()}.csv`, [
       ['Name', 'Type', 'Contact', 'Phone', 'GST No', 'City', 'State', 'Status'],
@@ -104,21 +95,12 @@ export default function PartyMasterPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Party Master"
-        description={`${summary.total} parties total, ${parties.length} shown`}
+        description={`${summary.total} parties total. ${parties.length} shown in the list below.`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Party Master' },
         ]}
-        addLabel="Add Party"
-        onAdd={openCreate}
-        onExport={exportCsv}
       />
-
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar title="Filters">
-        <PartyFiltersBar filters={filters} onChange={setFilters} />
-      </ListFilterBar>
 
       {!isLoading && parties.length === 0 ? (
         <PartyEmptyState
@@ -127,7 +109,21 @@ export default function PartyMasterPage() {
           onCreate={openCreate}
         />
       ) : (
-        <ListTablePanel title="Parties" description={isLoading ? 'Loading parties...' : `${parties.length} records`}>
+        <ListTablePanel
+          title="Parties"
+          description={isLoading ? 'Loading parties...' : `${parties.length} records`}
+          leftContent={<PartyFiltersBar filters={filters} onChange={setFilters} />}
+          rightContent={(
+            <>
+              <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+                <Download className="mr-2 h-4 w-4" /> Export CSV
+              </Button>
+              <Button className="table-toolbar-button" onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" /> Add Party
+              </Button>
+            </>
+          )}
+        >
           <DataTable
             columns={columns}
             data={parties}

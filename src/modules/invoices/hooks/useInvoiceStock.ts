@@ -15,8 +15,8 @@ export interface StockBatch {
 }
 
 const fallbackItems: ItemRecord[] = [
-  { id: 'fg-1', storeName: 'Finished Product A', tallyName: 'Finished Product A', sku: 'FG-001', itemType: 'finished', category: 'Finished', baseUnit: 'pcs', hsnCode: '3004', gstRate: 12, isActive: true, createdAt: '' },
-  { id: '10', storeName: 'Motor Assembly A1', tallyName: 'Motor Assembly A1', sku: 'MA-1', itemType: 'finished', category: 'Finished', baseUnit: 'pcs', hsnCode: '8501', gstRate: 18, isActive: true, createdAt: '' },
+  { id: 'fg-1', storeName: 'Finished Product A', tallyName: 'Finished Product A', sku: 'FG-001', itemType: 'finished', categoryId: 'cat-fg-main', category: 'Finished', baseUnit: 'pcs', hsnCode: '3004', gstRate: 12, isActive: true, createdAt: '' },
+  { id: '10', storeName: 'Motor Assembly A1', tallyName: 'Motor Assembly A1', sku: 'MA-1', itemType: 'finished', categoryId: 'cat-fg-motor', category: 'Finished', baseUnit: 'pcs', hsnCode: '8501', gstRate: 18, isActive: true, createdAt: '' },
 ];
 
 const fallbackStock: StockBatch[] = [

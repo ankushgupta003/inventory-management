@@ -85,7 +85,7 @@ export default function GINViewPage() {
         <table className="w-full border-collapse border border-black text-xs">
           <thead>
             <tr className="bg-gray-100">
-              {['Sr', 'Description', 'ULP Qty', 'Bill Qty', 'Recd Qty', 'Accptd', 'Rejctd', 'Batch/Lot', 'MFG Date', 'Expiry', 'Rate', 'Value', 'Remarks'].map((header) => (
+              {['Sr', 'Description', 'ULP Qty', 'Bill Qty', 'Recd Qty', 'Accptd', 'Rejctd', 'Batch/Lot', 'MFG Date', 'Expiry', 'Rate', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total', 'Remarks'].map((header) => (
                 <th key={header} className="whitespace-nowrap border border-black px-1.5 py-1.5 text-left font-semibold">
                   {header}
                 </th>
@@ -103,20 +103,31 @@ export default function GINViewPage() {
                 <td className="border border-black px-1.5 py-1.5 text-right">{item.acceptedQty}</td>
                 <td className="border border-black px-1.5 py-1.5 text-right">{item.rejectedQty}</td>
                 <td className="border border-black px-1.5 py-1.5">{item.batchNo}</td>
-                <td className="border border-black px-1.5 py-1.5">{item.mfgDate}</td>
-                <td className="border border-black px-1.5 py-1.5">{item.expiryDate}</td>
-                <td className="border border-black px-1.5 py-1.5 text-right">Rs {item.rate.toLocaleString('en-IN')}</td>
-                <td className="border border-black px-1.5 py-1.5 text-right font-medium">Rs {item.amount.toLocaleString('en-IN')}</td>
+                <td className="border border-black px-1.5 py-1.5">{item.mfgDate || '-'}</td>
+                <td className="border border-black px-1.5 py-1.5">{item.expiryDate || '-'}</td>
+                <td className="border border-black px-1.5 py-1.5 text-right">Rs {item.rate.toLocaleString('en-IN', { maximumFractionDigits: 4 })}</td>
+                <td className="border border-black px-1.5 py-1.5 text-right">Rs {item.taxableValue.toLocaleString('en-IN')}</td>
+                <td className="border border-black px-1.5 py-1.5 text-right">Rs {item.cgstAmount.toLocaleString('en-IN')}</td>
+                <td className="border border-black px-1.5 py-1.5 text-right">Rs {item.sgstAmount.toLocaleString('en-IN')}</td>
+                <td className="border border-black px-1.5 py-1.5 text-right">Rs {item.igstAmount.toLocaleString('en-IN')}</td>
+                <td className="border border-black px-1.5 py-1.5 text-right font-medium">Rs {item.lineTotalAmount.toLocaleString('en-IN')}</td>
                 <td className="border border-black px-1.5 py-1.5">{item.remarks || '-'}</td>
               </tr>
             ))}
-            <tr className="font-bold">
-              <td colSpan={11} className="border border-black px-1.5 py-2 text-right">Grand Total:</td>
-              <td className="border border-black px-1.5 py-2 text-right">Rs {gin.totalAmount.toLocaleString('en-IN')}</td>
-              <td className="border border-black px-1.5 py-2" />
-            </tr>
           </tbody>
         </table>
+
+        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+          <div className="space-y-1">
+            <Row label="Taxable Value" value={`Rs ${gin.totalTaxableValue.toLocaleString('en-IN')}`} />
+            <Row label="CGST" value={`Rs ${gin.totalCgstAmount.toLocaleString('en-IN')}`} />
+          </div>
+          <div className="space-y-1">
+            <Row label="SGST" value={`Rs ${gin.totalSgstAmount.toLocaleString('en-IN')}`} align="right" />
+            <Row label="IGST" value={`Rs ${gin.totalIgstAmount.toLocaleString('en-IN')}`} align="right" />
+            <Row label="Grand Total" value={`Rs ${gin.totalAmount.toLocaleString('en-IN')}`} align="right" />
+          </div>
+        </div>
 
         <div className="grid grid-cols-3 gap-4 pt-12 text-sm text-center">
           <SignatureBlock title="Prepared By" value={gin.preparedBy} />

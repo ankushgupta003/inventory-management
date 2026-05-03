@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+const dateTextSchema = z.union([
+  z.literal(''),
+  z.string().regex(/^\d{2}\/\d{4}$/, 'Use MM/YYYY, DD/MM/YYYY, or YYYY-MM-DD'),
+  z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Use MM/YYYY, DD/MM/YYYY, or YYYY-MM-DD'),
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use MM/YYYY, DD/MM/YYYY, or YYYY-MM-DD'),
+]);
+
+const toComparableIsoDate = (value: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [day, month, year] = value.split('/');
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+};
+
 export const ginItemSchema = z
   .object({
     itemId: z.string().min(1, 'Item is required'),
@@ -9,9 +25,13 @@ export const ginItemSchema = z
     acceptedQty: z.number().min(0, 'Cannot be negative'),
     rejectedQty: z.number().min(0, 'Cannot be negative'),
     batchNo: z.string().min(1, 'Batch is required'),
-    mfgDate: z.string().min(1, 'Required'),
-    expiryDate: z.string().min(1, 'Required'),
+    mfgDate: dateTextSchema,
+    expiryDate: dateTextSchema,
     rate: z.number().min(0, 'Cannot be negative'),
+    taxableValue: z.number().min(0, 'Cannot be negative'),
+    cgstRate: z.number().min(0, 'Cannot be negative').max(100, 'Cannot exceed 100'),
+    sgstRate: z.number().min(0, 'Cannot be negative').max(100, 'Cannot exceed 100'),
+    igstRate: z.number().min(0, 'Cannot be negative').max(100, 'Cannot exceed 100'),
     remarks: z.string().optional(),
   })
   .superRefine((value, ctx) => {
@@ -24,11 +44,21 @@ export const ginItemSchema = z
       });
     }
 
-    if (value.expiryDate < value.mfgDate) {
+    const comparableMfgDate = toComparableIsoDate(value.mfgDate);
+    const comparableExpiryDate = toComparableIsoDate(value.expiryDate);
+    if (comparableMfgDate && comparableExpiryDate && comparableExpiryDate < comparableMfgDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['expiryDate'],
         message: 'Expiry date cannot be before MFG date',
+      });
+    }
+
+    if (value.igstRate > 0 && (value.cgstRate > 0 || value.sgstRate > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['igstRate'],
+        message: 'Use IGST or CGST/SGST, not both',
       });
     }
   });

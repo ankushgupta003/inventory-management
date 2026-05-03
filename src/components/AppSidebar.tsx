@@ -79,6 +79,7 @@ const COMPANY_ADMIN_NAV_SECTION: NavSection = {
   items: [
     { title: 'Departments', path: '/admin/departments', icon: BriefcaseBusiness },
     { title: 'Designations', path: '/admin/designations', icon: BriefcaseBusiness },
+    { title: 'Item Categories', path: '/admin/item-categories', icon: Package },
     { title: 'Roles', path: '/admin/roles', icon: ShieldCheck },
     { title: 'Users', path: '/admin/users', icon: Users },
   ],
@@ -134,7 +135,7 @@ export default function AppSidebar({ className, mobile = false, onNavigate, port
   const shellClassName =
     activePortal === 'super-admin'
       ? 'bg-[linear-gradient(180deg,#061124_0%,#0f172a_52%,#052e2b_100%)]'
-      : 'bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(231_58%_14%)_100%)]';
+      : 'bg-sidebar';
   const brandHref = activePortal === 'super-admin' ? '/super-admin/dashboard' : '/dashboard';
   const brandTitle = activePortal === 'super-admin' ? 'InventoryX SaaS' : 'InventoryX';
   const brandSubtitle = activePortal === 'super-admin' ? 'Platform Control' : (user?.companyName ?? 'Operations Hub');
@@ -157,7 +158,7 @@ export default function AppSidebar({ className, mobile = false, onNavigate, port
       <div className="border-b border-sidebar-border px-4 py-4">
         <div className="flex items-center gap-2">
           <Link to={brandHref} className="flex items-center gap-3" onClick={onNavigate}>
-            <span className="grid h-11 w-11 place-content-center rounded-2xl bg-gradient-to-br from-[#2557ff] to-[#0f9d8f] text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20">
+            <span className="grid h-10 w-10 place-content-center rounded-lg border border-sidebar-border bg-sidebar-accent text-white">
               {activePortal === 'super-admin' ? <ShieldCheck className="h-5 w-5" /> : <Grid2x2 className="h-5 w-5" />}
             </span>
             {!collapsed && (
@@ -186,9 +187,9 @@ export default function AppSidebar({ className, mobile = false, onNavigate, port
                   to={item.path}
                   onClick={onNavigate}
                   className={cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
                     isActive
-                      ? 'bg-gradient-to-r from-[#2557ff] to-[#0f9d8f] font-semibold text-white shadow-[0_14px_28px_-18px_rgba(37,87,255,0.95)]'
+                      ? 'bg-sidebar-accent font-semibold text-white'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground',
                   )}
                   title={collapsed ? item.title : undefined}
@@ -203,7 +204,7 @@ export default function AppSidebar({ className, mobile = false, onNavigate, port
       </nav>
 
       {!collapsed && (
-        <div className="m-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-accent/40 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="m-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-3">
           <p className="text-xs font-semibold text-white">{footerTitle}</p>
           <p className="mt-1 text-xs text-sidebar-muted">{footerCopy}</p>
         </div>

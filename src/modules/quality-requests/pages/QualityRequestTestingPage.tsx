@@ -104,6 +104,25 @@ export default function QualityRequestTestingPage() {
         )}
       />
 
+      <div className="simple-status-summary">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current Status</div>
+            <div className="mt-2 text-lg font-semibold capitalize">{record.status.replace('_', ' ')}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Source</div>
+            <div className="mt-2 text-lg font-semibold">{record.sourceType === 'sampling' ? 'Sampling' : 'Manual'}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Next Action</div>
+            <div className="mt-2 text-sm font-medium text-foreground">
+              {canSubmitReport ? 'Enter test details and save the report.' : 'Testing report can be saved only after approval and before closure.'}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <FormSection title="Request Summary">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
           <div>
@@ -117,6 +136,22 @@ export default function QualityRequestTestingPage() {
           <div>
             <div className="text-muted-foreground">Batch</div>
             <div className="font-medium">{record.batchNo}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Item Type</div>
+            <div className="font-medium capitalize">{record.itemType || '-'}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Source</div>
+            <div className="font-medium">{record.sourceType === 'sampling' ? 'Sampling' : 'Manual'}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Source Movement</div>
+            <div className="font-medium">{record.stockMovementNo || '-'}</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Production Batch</div>
+            <div className="font-medium">{record.productionBatchNo || '-'}</div>
           </div>
         </div>
       </FormSection>

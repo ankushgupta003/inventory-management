@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, Pie, PieChart, XAxis, YAxis } from 'recharts';
-import { CheckCircle, Eye, FilePlus2, FlaskConical, Search, XCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CheckCircle, Download, Eye, FilePlus2, FlaskConical, Plus, RotateCcw, Search, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import PanelCard from '@/components/PanelCard';
-import ChartPanelHeader from '@/components/ChartPanelHeader';
-import EmptyStatePanel from '@/components/EmptyStatePanel';
 import { Button } from '@/components/ui/button';
 import TableActionButton from '@/components/TableActionButton';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,15 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import DataTable from '@/components/DataTable';
 import StatusBadge from '@/components/StatusBadge';
 import CompactSelect from '@/components/CompactSelect';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { qualityRequestsApi } from '../services/qualityRequestsApi';
-import type { QualityRequestRecord, QualityRequestStatus } from '../types';
+import type { QualityRequestRecord, QualityRequestSourceType, QualityRequestStatus } from '../types';
 
 const statusVariant: Record<QualityRequestStatus, 'pending' | 'info' | 'success' | 'warning' | 'closed'> = {
   pending: 'pending',
@@ -40,11 +35,16 @@ const issueLabel: Record<QualityRequestRecord['issueType'], string> = {
 export default function QualityRequestListPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [records, setRecords] = useState<QualityRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | QualityRequestStatus>('all');
+  const [sourceType, setSourceType] = useState<'all' | QualityRequestSourceType>(
+    searchParams.get('sourceType') === 'sampling' ? 'sampling' : 'all',
+  );
+  const [stockMovementIdFilter, setStockMovementIdFilter] = useState(searchParams.get('stockMovementId') || '');
   const [approveOpen, setApproveOpen] = useState(false);
   const [approveId, setApproveId] = useState<string | null>(null);
   const [approveBy, setApproveBy] = useState(user?.fullName || 'QA Manager');
@@ -63,8 +63,12 @@ export default function QualityRequestListPage() {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      setLoading(true);
       try {
-        const data = await qualityRequestsApi.getAll();
+        const data = await qualityRequestsApi.getAll({
+          sourceType,
+          stockMovementId: stockMovementIdFilter || undefined,
+        });
         if (active) {
           setRecords(data);
           setLoadError('');
@@ -82,75 +86,51 @@ export default function QualityRequestListPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [sourceType, stockMovementIdFilter]);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (sourceType !== 'all') {
+      next.set('sourceType', sourceType);
+    }
+    if (stockMovementIdFilter) {
+      next.set('stockMovementId', stockMovementIdFilter);
+    }
+    setSearchParams(next, { replace: true });
+  }, [setSearchParams, sourceType, stockMovementIdFilter]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return records.filter((r) => {
       if (status !== 'all' && r.status !== status) return false;
       if (!q) return true;
-      return `${r.requestNo} ${r.itemName} ${r.batchNo}`.toLowerCase().includes(q);
+      return `${r.requestNo} ${r.itemName} ${r.batchNo} ${r.stockMovementNo || ''} ${r.productionBatchNo || ''}`.toLowerCase().includes(q);
     });
   }, [records, search, status]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
+  const summary = useMemo(() => {
     const pending = records.filter((r) => r.status === 'pending').length;
     const testing = records.filter((r) => r.status === 'approved' || r.status === 'under_testing').length;
     const completed = records.filter((r) => r.status === 'completed').length;
-    return [
-      { id: 'all', label: 'Total Requests', value: records.length.toLocaleString('en-IN'), icon: FlaskConical, tone: 'blue' },
-      { id: 'pending', label: 'Pending Approval', value: pending.toLocaleString('en-IN'), icon: FlaskConical, tone: 'orange' },
-      { id: 'testing', label: 'Ready / In Testing', value: testing.toLocaleString('en-IN'), icon: FlaskConical, tone: 'purple' },
-      { id: 'completed', label: 'Reported', value: completed.toLocaleString('en-IN'), icon: CheckCircle, tone: 'green' },
-    ];
+    const closed = records.filter((r) => r.status === 'closed').length;
+    return { pending, testing, completed, closed };
   }, [records]);
-
-  const statusMix = useMemo(() => {
-    const order: QualityRequestStatus[] = ['pending', 'approved', 'under_testing', 'completed', 'closed'];
-    return order.map((key) => ({
-      key,
-      label: key.replace('_', ' '),
-      value: filtered.filter((row) => row.status === key).length,
-    })).filter((row) => row.value > 0);
-  }, [filtered]);
-
-  const issueMix = useMemo(() => {
-    const order: Array<QualityRequestRecord['issueType']> = ['defect', 'testing', 'complaint'];
-    return order.map((key) => ({
-      key,
-      label: issueLabel[key],
-      value: filtered.filter((row) => row.issueType === key).length,
-    })).filter((row) => row.value > 0);
-  }, [filtered]);
-
-  const requestTrend = useMemo(() => {
-    const byDate = new Map<string, { created: number; completed: number }>();
-    filtered
-      .slice()
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .forEach((row) => {
-        const current = byDate.get(row.date) || { created: 0, completed: 0 };
-        current.created += 1;
-        if (row.status === 'completed' || row.status === 'closed') {
-          current.completed += 1;
-        }
-        byDate.set(row.date, current);
-      });
-
-    return Array.from(byDate.entries())
-      .map(([date, counts]) => ({
-        date,
-        label: date.slice(5),
-        created: counts.created,
-        completed: counts.completed,
-      }))
-      .slice(-10);
-  }, [filtered]);
 
   const exportCsv = () => {
     exportCsvFile(`quality-request-list-${csvDateSuffix()}.csv`, [
-      ['Request No', 'Date', 'Item', 'Batch', 'Issue Type', 'Status'],
-      ...filtered.map((r) => [r.requestNo, r.date, r.itemName, r.batchNo, issueLabel[r.issueType], r.status]),
+      ['Request No', 'Date', 'Item', 'Item Type', 'Batch', 'Issue Type', 'Source', 'Movement No', 'Production Batch', 'Status'],
+      ...filtered.map((r) => [
+        r.requestNo,
+        r.date,
+        r.itemName,
+        r.itemType || '-',
+        r.batchNo,
+        issueLabel[r.issueType],
+        r.sourceType || 'manual',
+        r.stockMovementNo || '-',
+        r.productionBatchNo || '-',
+        r.status,
+      ]),
     ]);
   };
 
@@ -198,8 +178,23 @@ export default function QualityRequestListPage() {
     { key: 'requestNo', header: 'Request No', render: (r: QualityRequestRecord) => <span className="font-medium text-primary">{r.requestNo}</span> },
     { key: 'date', header: 'Date' },
     { key: 'itemName', header: 'Item' },
+    {
+      key: 'itemType',
+      header: 'Item Type',
+      render: (r: QualityRequestRecord) => r.itemType ? (r.itemType === 'raw' ? 'Raw' : 'Finished') : '-',
+    },
     { key: 'batchNo', header: 'Batch', render: (r: QualityRequestRecord) => <span className="font-mono text-xs">{r.batchNo}</span> },
     { key: 'issueType', header: 'Issue Type', render: (r: QualityRequestRecord) => issueLabel[r.issueType] },
+    {
+      key: 'source',
+      header: 'Source',
+      render: (r: QualityRequestRecord) => r.sourceType === 'sampling' ? `Sampling${r.stockMovementNo ? ` | ${r.stockMovementNo}` : ''}` : 'Manual',
+    },
+    {
+      key: 'productionBatchNo',
+      header: 'Production Batch',
+      render: (r: QualityRequestRecord) => r.productionBatchNo || '-',
+    },
     { key: 'status', header: 'Status', render: (r: QualityRequestRecord) => <StatusBadge status={statusVariant[r.status]} label={r.status.replace('_', ' ')} /> },
   ];
 
@@ -207,94 +202,93 @@ export default function QualityRequestListPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Quality Testing"
-        description="Manage approval, testing progress, and closures."
+        description={`${records.length.toLocaleString('en-IN')} requests. ${summary.pending.toLocaleString('en-IN')} pending approval, ${summary.testing.toLocaleString('en-IN')} in testing, ${summary.completed.toLocaleString('en-IN')} reported.`}
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Quality Testing' }]}
-        addLabel="Create Request"
-        onAdd={() => navigate('/quality-requests/create')}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <div className="grid gap-6 xl:grid-cols-3">
-        <PanelCard className="xl:col-span-2" bodyClassName="space-y-4">
-          <ChartPanelHeader title="Quality Request Trend" subtitle="Created versus reported requests" />
-          {requestTrend.length ? (
-            <ChartContainer
-              config={{
-                created: { label: 'Created', color: 'hsl(var(--kpi-blue))' },
-                completed: { label: 'Reported', color: 'hsl(var(--kpi-green))' },
-              }}
-              className="h-64"
-            >
-              <LineChart data={requestTrend}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={34} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line type="monotone" dataKey="created" stroke="var(--color-created)" strokeWidth={3} dot={false} />
-                <Line type="monotone" dataKey="completed" stroke="var(--color-completed)" strokeWidth={3} dot={false} />
-              </LineChart>
-            </ChartContainer>
-          ) : (
-            <EmptyStatePanel icon={FlaskConical} title="No trend data" description="Create requests to start tracking QA throughput." />
-          )}
-        </PanelCard>
-
-        <PanelCard bodyClassName="space-y-4">
-          <ChartPanelHeader title="Status Mix" subtitle="Current request distribution" />
-          {statusMix.length ? (
-            <ChartContainer config={{ value: { label: 'Count', color: 'hsl(var(--kpi-purple))' } }} className="h-64">
-              <PieChart>
-                <Pie data={statusMix} dataKey="value" nameKey="label" innerRadius={50} outerRadius={88} fill="hsl(var(--kpi-purple))" />
-                <ChartTooltip content={<ChartTooltipContent />} />
-              </PieChart>
-            </ChartContainer>
-          ) : (
-            <EmptyStatePanel icon={FlaskConical} title="No requests" description="Status distribution will appear once requests are created." />
-          )}
-        </PanelCard>
+      <div className="simple-status-grid">
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Total Requests</div>
+          <div className="mt-2 text-2xl font-semibold">{records.length.toLocaleString('en-IN')}</div>
+        </div>
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Pending Approval</div>
+          <div className="mt-2 text-2xl font-semibold">{summary.pending.toLocaleString('en-IN')}</div>
+        </div>
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Ready / In Testing</div>
+          <div className="mt-2 text-2xl font-semibold">{summary.testing.toLocaleString('en-IN')}</div>
+        </div>
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Reported / Closed</div>
+          <div className="mt-2 text-2xl font-semibold">{(summary.completed + summary.closed).toLocaleString('en-IN')}</div>
+        </div>
       </div>
 
-      <PanelCard bodyClassName="space-y-4">
-        <ChartPanelHeader title="Issue Type Breakdown" subtitle="What is driving quality workload" />
-        {issueMix.length ? (
-          <ChartContainer config={{ value: { label: 'Count', color: 'hsl(var(--kpi-orange))' } }} className="h-56">
-            <BarChart data={issueMix}>
-              <CartesianGrid vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} width={34} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="value" fill="var(--color-value)" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ChartContainer>
-        ) : (
-          <EmptyStatePanel icon={FlaskConical} title="No issue mix yet" description="Issue categories will appear after requests are logged." />
+      <ListTablePanel
+        title="Quality Requests"
+        description={`${filtered.length} records`}
+        leftContent={(
+          <>
+            <div className="table-toolbar-search relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search item, batch, request no..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
+            <CompactSelect
+              value={status}
+              onChange={(value) => setStatus(value as 'all' | QualityRequestStatus)}
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'under_testing', label: 'Under Testing' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'closed', label: 'Closed' },
+              ]}
+              className="table-toolbar-control"
+            />
+            <CompactSelect
+              value={sourceType}
+              onChange={(value) => setSourceType(value as 'all' | QualityRequestSourceType)}
+              options={[
+                { value: 'all', label: 'All Sources' },
+                { value: 'sampling', label: 'Sampling' },
+              ]}
+              className="table-toolbar-control-sm"
+            />
+            {stockMovementIdFilter ? (
+              <Input value={stockMovementIdFilter} readOnly className="table-toolbar-field bg-muted/50" />
+            ) : null}
+            <Button
+              className="table-toolbar-button"
+              variant="outline"
+              onClick={() => {
+                setSearch('');
+                setStatus('all');
+                setSourceType('all');
+                setStockMovementIdFilter('');
+              }}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
         )}
-      </PanelCard>
-
-      <ListFilterBar>
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search item, batch, request no..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <CompactSelect
-          value={status}
-          onChange={(value) => setStatus(value as 'all' | QualityRequestStatus)}
-          options={[
-            { value: 'all', label: 'All Status' },
-            { value: 'pending', label: 'Pending' },
-            { value: 'approved', label: 'Approved' },
-            { value: 'under_testing', label: 'Under Testing' },
-            { value: 'completed', label: 'Completed' },
-            { value: 'closed', label: 'Closed' },
-          ]}
-          className="w-44"
-        />
-        <Button variant="outline" onClick={() => { setSearch(''); setStatus('all'); }}>Clear</Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="Quality Requests" description={`${filtered.length} records`}>
+        rightContent={(
+          <>
+            <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+              <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
+            <Button className="table-toolbar-button" onClick={() => navigate('/quality-requests/create')}>
+              <Plus className="mr-2 h-4 w-4" /> Create Request
+            </Button>
+          </>
+        )}
+      >
+        {stockMovementIdFilter ? (
+          <div className="rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+            Filtered to sampling reports created from stock movement ID {stockMovementIdFilter}.
+          </div>
+        ) : null}
         {loadError ? (
           <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {loadError}

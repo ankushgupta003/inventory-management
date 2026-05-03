@@ -119,7 +119,7 @@ export default function ProductionViewPage() {
   const canSubmitQa = hasPermission('production.approve');
   const shouldLoadRawItems = canCreateMrs || canCreateMovement;
 
-  const { items: stockItems, batchesByItemName } = useIssueStock(canCreateMovement);
+  const { batchesByItemId } = useIssueStock(canCreateMovement);
   const { options: rawItemOptions } = useAvailableItems(shouldLoadRawItems);
 
   const [batch, setBatch] = useState<ProductionBatch | null>(null);
@@ -255,19 +255,26 @@ export default function ProductionViewPage() {
     [mrsLines, selectedMrsLineId],
   );
 
-  const selectedMovementItemName = useMemo(() => {
-    if (movementType === 'issue') return selectedMrsLine?.itemName ?? '';
-    const stockItem = stockItems.find((item) => item.id === movement.itemId);
-    return stockItem?.storeName || stockItem?.tallyName || stockItem?.sku || '';
-  }, [movement.itemId, movementType, selectedMrsLine, stockItems]);
+  const selectedMovementItemId = useMemo(() => {
+    if (movementType === 'issue') return selectedMrsLine?.itemId ?? '';
+    if (movementType === 'sampling') return batch?.itemId ?? movement.itemId;
+    return movement.itemId;
+  }, [batch?.itemId, movement.itemId, movementType, selectedMrsLine]);
 
   const availableBatches = useMemo(() => {
-    return selectedMovementItemName ? (batchesByItemName.get(selectedMovementItemName) ?? []) : [];
-  }, [batchesByItemName, selectedMovementItemName]);
+    if (!selectedMovementItemId) return [];
+    const rows = batchesByItemId.get(selectedMovementItemId) ?? [];
+    if (movementType === 'sampling' && batch?.batchNo) {
+      return rows.filter((row) => row.batchNo === batch.batchNo);
+    }
+    return rows;
+  }, [batch?.batchNo, batchesByItemId, movementType, selectedMovementItemId]);
+
+  const selectedBatchNo = movementType === 'sampling' && batch?.batchNo ? batch.batchNo : movement.batchNo;
 
   const selectedBatch = useMemo(
-    () => availableBatches.find((batchOption) => batchOption.batchNo === movement.batchNo) ?? null,
-    [availableBatches, movement.batchNo],
+    () => availableBatches.find((batchOption) => batchOption.batchNo === selectedBatchNo) ?? null,
+    [availableBatches, selectedBatchNo],
   );
 
   const totals = useMemo(() => {
@@ -275,6 +282,27 @@ export default function ProductionViewPage() {
     const totalIssued = mrsLines.reduce((sum, row) => sum + row.qtyIssued, 0);
     return { totalRequested, totalIssued };
   }, [mrsLines]);
+
+  const nextAction = useMemo(() => {
+    if (!batch) return '';
+    if (batch.status === 'DRAFT') return 'Create MRS lines, record movements, and complete the BMR.';
+    if (batch.status === 'IN_PROCESS') return 'Finish stock issue and complete BMR pages before QA.';
+    if (batch.status === 'QA_PENDING') return canSubmitQa ? 'Review BMR and submit the QA decision.' : 'Waiting for a QA decision from an authorized user.';
+    if (batch.status === 'BLOCKED') return 'Review QA remarks and decide the corrective action for this batch.';
+    return 'This batch is released. Use the history below for traceability.';
+  }, [batch, canSubmitQa]);
+
+  useEffect(() => {
+    if (movementType !== 'sampling' || !batch) return;
+
+    setMovement((prev) => ({
+      ...prev,
+      itemId: batch.itemId,
+      batchNo: batch.batchNo,
+      fromLocation: prev.fromLocation || 'FG Store',
+      toLocation: prev.toLocation || 'QC',
+    }));
+  }, [batch, movementType]);
 
   if (!batchId) {
     return <p className="text-muted-foreground">Batch not found.</p>;
@@ -411,14 +439,15 @@ export default function ProductionViewPage() {
         await stockMovementApi.create({
           type: 'sampling',
           date: new Date().toISOString().slice(0, 10),
+          productionBatchId: batch?.id,
           fromLocation: movement.fromLocation,
           toLocation: movement.toLocation,
           issuedBy: movement.issuedBy || undefined,
           sampleDrawnBy: movement.sampleDrawnBy || undefined,
           items: [
             {
-              itemId: movement.itemId,
-              batchNo: selectedBatch.batchNo,
+              itemId: batch?.itemId ?? movement.itemId,
+              batchNo: batch?.batchNo ?? selectedBatch.batchNo,
               quantity: movement.qty,
             },
           ],
@@ -492,6 +521,27 @@ export default function ProductionViewPage() {
 
       {batch ? (
         <>
+          <div className="simple-status-summary">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current Status</div>
+                <div className="mt-2 text-lg font-semibold">{statusLabel[batch.status]}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">BMR Status</div>
+                <div className="mt-2 text-lg font-semibold">{bmrStatus ?? 'Not Started'}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Material Progress</div>
+                <div className="mt-2 text-lg font-semibold">{formatNumber(totals.totalIssued)} / {formatNumber(totals.totalRequested)}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Next Action</div>
+                <div className="mt-2 text-sm font-medium text-foreground">{nextAction}</div>
+              </div>
+            </div>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Batch Snapshot</CardTitle>
@@ -681,7 +731,14 @@ export default function ProductionViewPage() {
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <div className="space-y-1.5">
                           <Label>Movement Type *</Label>
-                          <Select value={movementType} onValueChange={(value) => { setMovementType(value as StockMovementType); setSelectedMrsLineId(''); setMovement(emptyMovement()); }}>
+                          <Select
+                            value={movementType}
+                            onValueChange={(value) => {
+                              setMovementType(value as StockMovementType);
+                              setSelectedMrsLineId('');
+                              setMovement(emptyMovement());
+                            }}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Select movement" />
                             </SelectTrigger>
@@ -713,36 +770,53 @@ export default function ProductionViewPage() {
                           </div>
                         ) : (
                           <div className="space-y-1.5">
-                            <Label>Item *</Label>
-                            <Select value={movement.itemId} onValueChange={(value) => setMovement((prev) => ({ ...prev, itemId: value, batchNo: '' }))}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select item" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {rawItemOptions.map((item) => (
-                                  <SelectItem key={item.id} value={item.id}>
-                                    {item.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Label>{movementType === 'sampling' ? 'Finished Item' : 'Item *'}</Label>
+                            {movementType === 'sampling' ? (
+                              <>
+                                <Input readOnly value={batch?.productName || ''} className="bg-muted/50" />
+                                <p className="text-xs text-muted-foreground">
+                                  Sampling on this page is tied to the current finished-good batch and auto-creates a QC report.
+                                </p>
+                              </>
+                            ) : (
+                              <Select value={movement.itemId} onValueChange={(value) => setMovement((prev) => ({ ...prev, itemId: value, batchNo: '' }))}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select item" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {rawItemOptions.map((item) => (
+                                    <SelectItem key={item.id} value={item.id}>
+                                      {item.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                         )}
 
                         <div className="space-y-1.5">
                           <Label>Batch *</Label>
-                          <Select value={movement.batchNo} onValueChange={(value) => setMovement((prev) => ({ ...prev, batchNo: value }))} disabled={!selectedMovementItemName}>
-                            <SelectTrigger>
-                              <SelectValue placeholder={selectedMovementItemName ? 'Select batch' : 'Select item first'} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableBatches.map((row) => (
-                                <SelectItem key={row.batchNo} value={row.batchNo}>
-                                  {row.batchNo} (Avail: {row.availableQty})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {movementType === 'sampling' ? (
+                            <Input readOnly value={batch?.batchNo || ''} className="bg-muted/50" />
+                          ) : (
+                            <Select
+                              value={movement.batchNo}
+                              onValueChange={(value) => setMovement((prev) => ({ ...prev, batchNo: value }))}
+                              disabled={!selectedMovementItemId}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={selectedMovementItemId ? 'Select batch' : 'Select item first'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableBatches.map((row) => (
+                                  <SelectItem key={row.batchNo} value={row.batchNo}>
+                                    {row.batchNo} (Avail: {row.availableQty})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       </div>
 
@@ -819,7 +893,7 @@ export default function ProductionViewPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-border bg-muted/50">
-                          {['Date', 'Movement', 'Type', 'Item', 'Batch', 'Qty', 'MRS'].map((header) => (
+                          {['Date', 'Movement', 'Type', 'Item', 'Batch', 'Qty', 'MRS', 'Reports'].map((header) => (
                             <th key={header} className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{header}</th>
                           ))}
                         </tr>
@@ -827,12 +901,12 @@ export default function ProductionViewPage() {
                       <tbody>
                         {movementError && (
                           <tr>
-                            <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">{movementError}</td>
+                            <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">{movementError}</td>
                           </tr>
                         )}
                         {!movementError && movements.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">No movements recorded.</td>
+                            <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">No movements recorded.</td>
                           </tr>
                         )}
                         {!movementError && movements.map((row) => (
@@ -844,6 +918,24 @@ export default function ProductionViewPage() {
                             <td className="px-3 py-2">{row.batchNo}</td>
                             <td className="px-3 py-2">{row.quantity}</td>
                             <td className="px-3 py-2">{row.mrsNo || '-'}</td>
+                            <td className="px-3 py-2">
+                              {row.qualityRequests?.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {row.qualityRequests.map((request) => (
+                                    <button
+                                      key={request.id}
+                                      type="button"
+                                      className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                                      onClick={() => navigate(`/quality-requests/${request.id}`)}
+                                    >
+                                      {request.requestNo}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                '-'
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

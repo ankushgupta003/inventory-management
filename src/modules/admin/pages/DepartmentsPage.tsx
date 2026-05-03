@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import PanelCard from '@/components/PanelCard';
@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { companyAdminAPI } from '@/services/api';
 import { getErrorMessage } from '@/lib/apiError';
+import { csvDateSuffix, exportCsvFile } from '@/lib/csv';
 import type { DepartmentRecord, DepartmentUpsertPayload } from '@/types';
 
 const emptyForm: DepartmentUpsertPayload = {
@@ -27,6 +28,7 @@ export default function DepartmentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DepartmentRecord | null>(null);
   const [form, setForm] = useState<DepartmentUpsertPayload>(emptyForm);
+  const [search, setSearch] = useState('');
 
   const loadDepartments = async () => {
     try {
@@ -42,6 +44,19 @@ export default function DepartmentsPage() {
   useEffect(() => {
     void loadDepartments();
   }, []);
+
+  const filteredDepartments = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return departments;
+    return departments.filter((record) => `${record.name} ${record.code || ''}`.toLowerCase().includes(query));
+  }, [departments, search]);
+
+  const exportCsv = () => {
+    exportCsvFile(`departments-${csvDateSuffix()}.csv`, [
+      ['Department', 'Code', 'Status'],
+      ...filteredDepartments.map((record) => [record.name, record.code ?? '-', record.isActive ? 'Active' : 'Inactive']),
+    ]);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -105,16 +120,25 @@ export default function DepartmentsPage() {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Departments' },
         ]}
-        action={(
-          <Button className="rounded-xl" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Department
-          </Button>
-        )}
       />
 
       <PanelCard title="Department Master" subtitle="Active and inactive company departments">
         <DataTable
+          toolbar={(
+            <div className="table-toolbar">
+              <div className="table-toolbar-filters">
+                <Input placeholder="Search departments..." value={search} onChange={(event) => setSearch(event.target.value)} className="table-toolbar-search" />
+              </div>
+              <div className="table-toolbar-actions">
+                <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+                  <Download className="mr-2 h-4 w-4" /> Export CSV
+                </Button>
+                <Button className="table-toolbar-button" onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Department
+                </Button>
+              </div>
+            </div>
+          )}
           columns={[
             { key: 'name', header: 'Department', render: (row: DepartmentRecord) => <span className="font-medium">{row.name}</span> },
             { key: 'code', header: 'Code', render: (row: DepartmentRecord) => row.code ?? '-' },
@@ -126,9 +150,7 @@ export default function DepartmentsPage() {
               ),
             },
           ]}
-          data={departments}
-          searchKey="name"
-          searchPlaceholder="Search departments..."
+          data={filteredDepartments}
           isLoading={loading}
           actions={(row) => (
             <div className="flex items-center justify-end gap-1">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit2, KeyRound, Plus, ToggleLeft, ToggleRight, UserCog } from 'lucide-react';
+import { Download, Edit2, KeyRound, Plus, ToggleLeft, ToggleRight, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import PanelCard from '@/components/PanelCard';
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { companyAdminAPI } from '@/services/api';
 import { getErrorMessage } from '@/lib/apiError';
+import { csvDateSuffix, exportCsvFile } from '@/lib/csv';
 import type {
   CompanyUserCreatePayload,
   CompanyUserRecord,
@@ -54,6 +55,7 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<CompanyUserRecord | null>(null);
   const [form, setForm] = useState<CompanyUserCreatePayload>(emptyForm);
   const [credentialNotice, setCredentialNotice] = useState<CredentialNotice | null>(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -85,6 +87,28 @@ export default function UsersPage() {
 
     return { total: users.length, companyAdmins, companyUsers, active };
   }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return users;
+    return users.filter((user) => `${user.fullName} ${user.email} ${user.employeeCode || ''} ${user.role?.name || ''}`.toLowerCase().includes(query));
+  }, [search, users]);
+
+  const exportCsv = () => {
+    exportCsvFile(`users-${csvDateSuffix()}.csv`, [
+      ['Name', 'Email', 'Employee Code', 'Department', 'Designation', 'Role', 'Type', 'Status'],
+      ...filteredUsers.map((user) => [
+        user.fullName,
+        user.email,
+        user.employeeCode ?? '-',
+        user.department?.name ?? '-',
+        user.designation?.name ?? '-',
+        user.role?.name ?? '-',
+        user.accountType === 'COMPANY_ADMIN' ? 'Company Admin' : 'Company User',
+        user.isActive ? 'Active' : 'Inactive',
+      ]),
+    ]);
+  };
 
   const resetEditor = () => {
     setModalOpen(false);
@@ -198,19 +222,25 @@ export default function UsersPage() {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Users' },
         ]}
-        action={(
-          <Button className="rounded-xl" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add User
-          </Button>
-        )}
       />
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <PanelCard title="Total Users"><p className="text-3xl font-semibold">{stats.total}</p></PanelCard>
-        <PanelCard title="Company Admins"><p className="text-3xl font-semibold">{stats.companyAdmins}</p></PanelCard>
-        <PanelCard title="Company Users"><p className="text-3xl font-semibold">{stats.companyUsers}</p></PanelCard>
-        <PanelCard title="Active"><p className="text-3xl font-semibold text-emerald-600">{stats.active}</p></PanelCard>
+      <div className="simple-status-grid">
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Total Users</div>
+          <div className="mt-2 text-2xl font-semibold">{stats.total}</div>
+        </div>
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Company Admins</div>
+          <div className="mt-2 text-2xl font-semibold">{stats.companyAdmins}</div>
+        </div>
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Company Users</div>
+          <div className="mt-2 text-2xl font-semibold">{stats.companyUsers}</div>
+        </div>
+        <div className="simple-status-summary">
+          <div className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Active</div>
+          <div className="mt-2 text-2xl font-semibold text-emerald-600">{stats.active}</div>
+        </div>
       </div>
 
       {credentialNotice ? (
@@ -224,6 +254,21 @@ export default function UsersPage() {
 
       <PanelCard title="Company Users" subtitle="Users inside this tenant and their master mappings">
         <DataTable
+          toolbar={(
+            <div className="table-toolbar">
+              <div className="table-toolbar-filters">
+                <Input placeholder="Search users..." value={search} onChange={(event) => setSearch(event.target.value)} className="table-toolbar-search" />
+              </div>
+              <div className="table-toolbar-actions">
+                <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+                  <Download className="mr-2 h-4 w-4" /> Export CSV
+                </Button>
+                <Button className="table-toolbar-button" onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" /> Add User
+                </Button>
+              </div>
+            </div>
+          )}
           columns={[
             { key: 'fullName', header: 'Name', render: (row: CompanyUserRecord) => <span className="font-medium">{row.fullName}</span> },
             { key: 'email', header: 'Email' },
@@ -252,9 +297,7 @@ export default function UsersPage() {
               ),
             },
           ]}
-          data={users}
-          searchKey="fullName"
-          searchPlaceholder="Search users..."
+          data={filteredUsers}
           isLoading={loading}
           actions={(row) => (
             <div className="flex items-center justify-end gap-1">

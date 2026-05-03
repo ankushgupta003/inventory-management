@@ -110,8 +110,8 @@ function renderWithTooltip(ui: ReactNode) {
   );
 }
 
-describe('Premium list page composition', () => {
-  it('renders Party Master with KPI/filter/table structure', async () => {
+describe('Simple list page composition', () => {
+  it('renders Party Master with filters and actions inside the table header', async () => {
     renderWithTooltip(
       <MemoryRouter>
         <PartyMasterPage />
@@ -119,13 +119,14 @@ describe('Premium list page composition', () => {
     );
 
     expect(await screen.findByRole('heading', { name: /Party Master/i, level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/Filters/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /^Parties$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Export CSV/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Add Party/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Search by name, GST, phone, city/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Filters$/i)).not.toBeInTheDocument();
   });
 
-  it('renders Production list with consistent premium sections', async () => {
+  it('renders Production list with inline filters and actions', async () => {
     renderWithTooltip(
       <MemoryRouter>
         <ProductionListPage />
@@ -133,9 +134,10 @@ describe('Premium list page composition', () => {
     );
 
     expect(await screen.findByRole('heading', { name: /Production Batches/i, level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/^Filters$/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Search by production no, batch no, or product/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Production Batches/i).length).toBeGreaterThan(1);
     expect(screen.getByRole('button', { name: /Export CSV/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create Batch/i })).toBeInTheDocument();
   });
 
   it('renders Invoice and Ledger with shared layout affordances', async () => {
@@ -146,6 +148,7 @@ describe('Premium list page composition', () => {
     );
     expect(await screen.findByText(/Final Invoice/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create Invoice/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Search invoice no, PI no, or customer/i)).toBeInTheDocument();
 
     renderWithTooltip(
       <MemoryRouter>
@@ -155,5 +158,6 @@ describe('Premium list page composition', () => {
     expect(await screen.findByText(/^Ledger$/i)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Transactions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Export CSV/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Filters$/i)).not.toBeInTheDocument();
   });
 });

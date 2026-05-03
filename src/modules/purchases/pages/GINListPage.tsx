@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Eye, PackageCheck, ShoppingCart, Truck, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Download, Eye, Plus, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import DataTable from '@/components/DataTable';
 import TableActionButton from '@/components/TableActionButton';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { csvDateSuffix, exportCsvFile } from '@/lib/csv';
@@ -80,17 +80,9 @@ export default function GINListPage() {
     };
   }, [dateFrom, dateTo, search]);
 
-  const kpis: ListPageKpi[] = useMemo(() => [
-    { id: 'count', label: 'Total GIN', value: meta.summary.count.toLocaleString('en-IN'), icon: ShoppingCart, tone: 'blue' },
-    { id: 'value', label: 'Total Value', value: `INR ${meta.summary.totalAmount.toLocaleString('en-IN')}`, icon: Truck, tone: 'green' },
-    { id: 'accepted', label: 'Accepted Qty', value: meta.summary.totalAcceptedQty.toLocaleString('en-IN'), icon: PackageCheck, tone: 'emerald' },
-    { id: 'rejected', label: 'Rejected Qty', value: meta.summary.totalRejectedQty.toLocaleString('en-IN'), icon: XCircle, tone: 'orange' },
-    { id: 'vendors', label: 'Vendors', value: meta.summary.vendorCount.toLocaleString('en-IN'), icon: Truck, tone: 'purple' },
-  ], [meta.summary]);
-
   const exportCsv = () => {
     exportCsvFile(`gin-list-${csvDateSuffix()}.csv`, [
-      ['GIN No', 'Entry Date', 'Vendor', 'Bill No', 'Challan No', 'Accepted Qty', 'Rejected Qty', 'Total Value'],
+      ['GIN No', 'Entry Date', 'Vendor', 'Bill No', 'Challan No', 'Accepted Qty', 'Rejected Qty', 'Taxable Value', 'Total Amount'],
       ...rows.map((row) => [
         row.ginNo,
         row.entryDate,
@@ -99,6 +91,7 @@ export default function GINListPage() {
         row.challanNo,
         row.totalAcceptedQty,
         row.totalRejectedQty,
+        row.totalTaxableValue,
         row.totalAmount,
       ]),
     ]);
@@ -112,32 +105,44 @@ export default function GINListPage() {
     { key: 'challanNo', header: 'Challan No' },
     { key: 'totalAcceptedQty', header: 'Accepted Qty', className: 'text-right', render: (row: PurchaseGinListRow) => row.totalAcceptedQty.toLocaleString('en-IN') },
     { key: 'totalRejectedQty', header: 'Rejected Qty', className: 'text-right', render: (row: PurchaseGinListRow) => row.totalRejectedQty.toLocaleString('en-IN') },
-    { key: 'totalAmount', header: 'Total Value', className: 'text-right', render: (row: PurchaseGinListRow) => `INR ${row.totalAmount.toLocaleString('en-IN')}` },
+    { key: 'totalTaxableValue', header: 'Taxable Value', className: 'text-right', render: (row: PurchaseGinListRow) => `INR ${row.totalTaxableValue.toLocaleString('en-IN')}` },
+    { key: 'totalAmount', header: 'Total Amount', className: 'text-right', render: (row: PurchaseGinListRow) => `INR ${row.totalAmount.toLocaleString('en-IN')}` },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Goods Inward Note"
-        description="Inbound purchase entries with accepted stock values."
+        description={`${meta.summary.count.toLocaleString('en-IN')} GIN records. Total amount INR ${meta.summary.totalAmount.toLocaleString('en-IN')}.`}
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Purchase (GIN)' }]}
-        addLabel="Create GIN"
-        onAdd={() => navigate('/purchases/create')}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar>
-        <div className="min-w-[220px] flex-1">
-          <Input placeholder="Search vendor, bill, challan, gate entry, GIN no..." value={search} onChange={(event) => setSearch(event.target.value)} />
-        </div>
-        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-[150px]" />
-        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-[150px]" />
-        <Button variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); }}>Clear</Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="GIN Records" description={`${meta.pagination.total.toLocaleString('en-IN')} records`}>
+      <ListTablePanel
+        title="GIN Records"
+        description={`${meta.pagination.total.toLocaleString('en-IN')} records`}
+        leftContent={(
+          <>
+            <div className="table-toolbar-search">
+              <Input placeholder="Search vendor, bill, challan, gate entry, GIN no..." value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+            <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="table-toolbar-date" />
+            <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="table-toolbar-date" />
+            <Button className="table-toolbar-button" variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); }}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={(
+          <>
+            <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+              <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
+            <Button className="table-toolbar-button" onClick={() => navigate('/purchases/create')}>
+              <Plus className="mr-2 h-4 w-4" /> Create GIN
+            </Button>
+          </>
+        )}
+      >
         <DataTable<PurchaseGinListRow>
           columns={columns}
           data={rows}

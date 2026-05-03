@@ -52,7 +52,7 @@ export default function StockMovementCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedMrsId = searchParams.get('mrsId') || '';
-  const { items, batchesByItemName } = useIssueStock();
+  const { items: rawItems, allItems, batchesByItemId } = useIssueStock();
   const { allRecords: mrsRecords } = useMRSList();
 
   const [date, setDate] = useState(today);
@@ -112,6 +112,11 @@ export default function StockMovementCreatePage() {
     setRows(mapped.length ? mapped : [{ ...emptyRow }]);
   }, [selectedMrs, type]);
 
+  const selectableItems = useMemo(
+    () => (type === 'sampling' ? allItems : rawItems),
+    [allItems, rawItems, type],
+  );
+
   const addRow = () => {
     setRows((prev) => [...prev, { ...emptyRow }]);
   };
@@ -121,7 +126,7 @@ export default function StockMovementCreatePage() {
   };
 
   const handleItem = (index: number, value: string) => {
-    const selected = items.find((item) => item.id === value);
+    const selected = allItems.find((item) => item.id === value);
     const itemName = selected?.storeName || selected?.tallyName || selected?.sku || '';
     const unit = selected?.baseUnit || '';
 
@@ -144,8 +149,8 @@ export default function StockMovementCreatePage() {
   };
 
   const handleBatch = (index: number, value: string) => {
-    const itemName = rows[index]?.itemName;
-    const list = itemName ? (batchesByItemName.get(itemName) ?? []) : [];
+    const itemId = rows[index]?.itemId;
+    const list = itemId ? (batchesByItemId.get(itemId) ?? []) : [];
     const batch = list.find((entry) => entry.batchNo === value);
 
     setRows((prev) =>
@@ -258,6 +263,16 @@ export default function StockMovementCreatePage() {
                 setType(value as StockMovementType);
                 setSelectedMrsId('');
                 setRows([{ ...emptyRow }]);
+                if (value === 'sampling') {
+                  setFromLocation('Store');
+                  setToLocation('QC');
+                } else if (value === 'transfer') {
+                  setFromLocation('');
+                  setToLocation('');
+                } else {
+                  setFromLocation('');
+                  setToLocation('');
+                }
               }}
             >
               <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
@@ -320,9 +335,14 @@ export default function StockMovementCreatePage() {
           </Button>
         ) : undefined}
       >
+        {type === 'sampling' && (
+          <p className="text-sm text-muted-foreground">
+            Sampling supports both raw materials and finished goods. Saving the movement will auto-create linked QC sample reports.
+          </p>
+        )}
         <div className="space-y-4">
           {rows.map((row, index) => {
-            const rowBatches = row.itemName ? (batchesByItemName.get(row.itemName) ?? []) : [];
+            const rowBatches = row.itemId ? (batchesByItemId.get(row.itemId) ?? []) : [];
             const availableBatches = rowBatches.filter((batch) => batch.availableQty > 0);
             const remaining = typeof row.remainingQty === 'number' ? row.remainingQty : undefined;
 
@@ -338,9 +358,10 @@ export default function StockMovementCreatePage() {
                   <Select value={row.itemId} onValueChange={(value) => handleItem(index, value)} disabled={issueWithMrs}>
                     <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
                     <SelectContent>
-                      {items.map((item) => (
+                      {selectableItems.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
                           {item.storeName || item.tallyName || item.sku}
+                          {item.itemType === 'finished' ? ' (FG)' : ' (Raw)'}
                         </SelectItem>
                       ))}
                     </SelectContent>

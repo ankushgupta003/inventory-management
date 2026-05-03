@@ -5,6 +5,7 @@ import type {
   QualityRequestCreatePayload,
   QualityRequestRecord,
   QualityRequestReportPayload,
+  QualityRequestSourceType,
 } from '../types';
 
 interface ApiEnvelope<T> {
@@ -15,13 +16,22 @@ let mockRequests: QualityRequestRecord[] = [
   {
     id: 'qr-1',
     requestNo: 'QREQ-240404-001',
+    sourceType: 'sampling',
+    stockMovementId: 'sm-1',
+    stockMovementItemId: 'smi-1',
+    stockMovementNo: 'MOV-00001',
+    itemId: 'fg-1',
+    itemType: 'finished',
+    productionBatchId: 'batch-1',
+    productionBatchNo: 'FG-001',
+    productionNo: 'PRD-00001',
     date: '2026-04-04',
-    itemName: 'Steel Rod 10mm',
-    batchNo: 'B-2026-001',
+    itemName: 'Finished Product A',
+    batchNo: 'FG-001',
     quantity: 10,
-    issueType: 'defect',
-    description: 'Surface cracks observed during inspection.',
-    remarks: 'Hold batch until QA review.',
+    issueType: 'testing',
+    description: 'Auto-created from sampling movement MOV-00001.',
+    remarks: 'Hold sample for QC review.',
     requestedBy: 'Store Admin',
     status: 'pending',
     createdAt: '2026-04-04',
@@ -29,12 +39,18 @@ let mockRequests: QualityRequestRecord[] = [
   {
     id: 'qr-2',
     requestNo: 'QREQ-240403-002',
+    sourceType: 'sampling',
+    stockMovementId: 'sm-2',
+    stockMovementItemId: 'smi-2',
+    stockMovementNo: 'MOV-00002',
+    itemId: 'rm-1',
+    itemType: 'raw',
     date: '2026-04-03',
-    itemName: 'Copper Wire 2mm',
-    batchNo: 'B-2026-002',
+    itemName: 'Cotton',
+    batchNo: 'RM-001',
     quantity: 5,
     issueType: 'testing',
-    description: 'Routine QC testing request.',
+    description: 'Routine raw-material sampling request.',
     remarks: '',
     requestedBy: 'QC Lead',
     status: 'under_testing',
@@ -46,10 +62,29 @@ let mockRequests: QualityRequestRecord[] = [
   },
 ];
 
+export type QualityRequestListParams = {
+  sourceType?: 'all' | QualityRequestSourceType;
+  stockMovementId?: string;
+};
+
 export const qualityRequestsApi = {
-  getAll: () => {
-    if (USE_MOCK) return Promise.resolve(mockRequests);
-    return api.get<ApiEnvelope<QualityRequestRecord[]>>('/quality-requests').then((response) => response.data.data);
+  getAll: (params?: QualityRequestListParams) => {
+    if (USE_MOCK) {
+      return Promise.resolve(
+        mockRequests.filter((request) => {
+          if (params?.sourceType && params.sourceType !== 'all' && request.sourceType !== params.sourceType) {
+            return false;
+          }
+          if (params?.stockMovementId && request.stockMovementId !== params.stockMovementId) {
+            return false;
+          }
+          return true;
+        }),
+      );
+    }
+    return api
+      .get<ApiEnvelope<QualityRequestRecord[]>>('/quality-requests', { params })
+      .then((response) => response.data.data);
   },
   getById: (id: string) => {
     if (USE_MOCK) {

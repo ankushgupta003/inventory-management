@@ -1,6 +1,15 @@
 export type StockMovementType = 'issue' | 'transfer' | 'sampling';
 
+export interface StockMovementQualityRequestLink {
+  id: string;
+  requestNo: string;
+  status: string;
+  itemName: string;
+  batchNo: string;
+}
+
 export interface StockMovementItem {
+  id?: string;
   itemId?: string;
   itemName: string;
   batchNo: string;
@@ -39,6 +48,7 @@ export interface StockMovementRecord {
   issuedBy?: string;
   sampleDrawnBy?: string;
   remarks?: string;
+  qualityRequests?: StockMovementQualityRequestLink[];
   createdAt?: string;
   updatedAt?: string;
 }

@@ -1,18 +1,20 @@
-import { useMemo, useState } from 'react';
-import { Edit2, Package, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import DataTable from '@/components/DataTable';
 import TableActionButton from '@/components/TableActionButton';
 import StatusBadge from '@/components/StatusBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { Button } from '@/components/ui/button';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { getErrorMessage } from '@/lib/apiError';
 import ItemFormModal from '../components/ItemFormModal';
 import ItemFiltersBar from '../components/ItemFiltersBar';
 import EmptyState from '../components/EmptyState';
 import { useItems } from '../hooks/useItems';
-import type { ItemRecord } from '../types';
+import { itemsApi } from '../services/itemsApi';
+import type { ItemCategoryOption, ItemRecord } from '../types';
 import type { ItemFormValues } from '../schemas/itemSchema';
 import { toast } from 'sonner';
 
@@ -21,6 +23,26 @@ export default function ItemMasterPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemRecord | null>(null);
   const [toggleId, setToggleId] = useState<string | null>(null);
+  const [categoryOptions, setCategoryOptions] = useState<ItemCategoryOption[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    itemsApi.getCategoryOptions()
+      .then((data) => {
+        if (!active) return;
+        setCategoryOptions(data);
+      })
+      .catch((error) => {
+        if (!active) return;
+        toast.error(getErrorMessage(error, 'Failed to load item categories'));
+        setCategoryOptions([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const openCreate = () => { setEditingItem(null); setModalOpen(true); };
   const openEdit = (item: ItemRecord) => { setEditingItem(item); setModalOpen(true); };
@@ -55,16 +77,6 @@ export default function ItemMasterPage() {
   const toggleItem = items.find((i) => i.id === toggleId);
 
   const hasFilters = filters.search !== '' || filters.status !== 'all' || filters.itemType !== 'all';
-
-  const kpis: ListPageKpi[] = useMemo(() => {
-    return [
-      { id: 'total', label: 'Total Items', value: summary.total.toLocaleString('en-IN'), icon: Package, tone: 'blue' },
-      { id: 'active', label: 'Active', value: summary.active.toLocaleString('en-IN'), icon: Package, tone: 'green' },
-      { id: 'raw', label: 'Raw Material', value: summary.raw.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
-      { id: 'finished', label: 'Finished Goods', value: summary.finished.toLocaleString('en-IN'), icon: Package, tone: 'purple' },
-      { id: 'inactive', label: 'Inactive', value: summary.inactive.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
-    ].slice(0, 4);
-  }, [summary]);
 
   const exportCsv = () => {
     exportCsvFile(`item-master-list-${csvDateSuffix()}.csv`, [
@@ -105,21 +117,12 @@ export default function ItemMasterPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Item Master"
-        description={`${summary.total} items total, ${items.length} shown`}
+        description={`${summary.total} items total. ${items.length} shown in the list below.`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Item Master' },
         ]}
-        addLabel="Add Item"
-        onAdd={openCreate}
-        onExport={exportCsv}
       />
-
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar title="Filters">
-        <ItemFiltersBar filters={filters} onChange={setFilters} />
-      </ListFilterBar>
 
       {!isLoading && items.length === 0 ? (
         <EmptyState
@@ -128,7 +131,21 @@ export default function ItemMasterPage() {
           onCreate={openCreate}
         />
       ) : (
-        <ListTablePanel title="Items" description={isLoading ? 'Loading items...' : `${items.length} records`}>
+        <ListTablePanel
+          title="Items"
+          description={isLoading ? 'Loading items...' : `${items.length} records`}
+          leftContent={<ItemFiltersBar filters={filters} onChange={setFilters} />}
+          rightContent={(
+            <>
+              <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+                <Download className="mr-2 h-4 w-4" /> Export CSV
+              </Button>
+              <Button className="table-toolbar-button" onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" /> Add Item
+              </Button>
+            </>
+          )}
+        >
           <DataTable
             columns={columns}
             data={items}
@@ -154,6 +171,7 @@ export default function ItemMasterPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
+        categoryOptions={categoryOptions}
         editingItem={editingItem}
       />
 

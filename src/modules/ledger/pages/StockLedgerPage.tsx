@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListPagination, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListPagination, ListTablePanel } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { useLedger } from '../hooks/useLedger';
 import type { ItemCategory, LedgerEntry, LedgerTransaction, TransactionType } from '../types';
@@ -279,19 +279,6 @@ function TransactionsTable({ entries }: { entries: LedgerEntry[] }) {
     }
   }, [page, totalPages]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
-    const receipt = filteredTransactions.reduce((sum, entry) => sum + entry.receiptQty, 0);
-    const issue = filteredTransactions.reduce((sum, entry) => sum + entry.issueQty, 0);
-    const neutral = filteredTransactions.filter((entry) => entry.receiptQty === 0 && entry.issueQty === 0).length;
-
-    return [
-      { id: 'transactions', label: 'Transactions', value: filteredTransactions.length.toLocaleString('en-IN'), icon: BookOpen, tone: 'blue' },
-      { id: 'in', label: 'Total Receipt', value: formatQuantity(receipt), icon: PackageCheck, tone: 'green' },
-      { id: 'out', label: 'Total Issue', value: formatQuantity(issue), icon: ArrowDownUp, tone: 'orange' },
-      { id: 'neutral', label: 'Neutral Docs', value: neutral.toLocaleString('en-IN'), icon: Boxes, tone: 'purple' },
-    ];
-  }, [filteredTransactions]);
-
   const exportCsv = () => {
     exportCsvFile(`ledger-transactions-${csvDateSuffix()}.csv`, [
       ['Date', 'Ref No', 'Type', 'Particulars', 'Items', 'Batches', 'Receipt', 'Issue', 'Net', 'Value', 'Source'],
@@ -313,88 +300,87 @@ function TransactionsTable({ entries }: { entries: LedgerEntry[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
-        <Button variant="outline" className="rounded-xl" onClick={exportCsv}>Export CSV</Button>
-      </div>
+      <ListTablePanel
+        title="Transaction Register"
+        description={`${filteredTransactions.length} grouped transactions`}
+        leftContent={(
+          <>
+            <Input
+              value={filters.search}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, search: event.target.value }));
+                setPage(1);
+              }}
+              placeholder="Search ref, party, item, batch"
+              className="table-toolbar-search"
+            />
 
-      <ListKpiStrip items={kpis} />
+            <Select
+              value={filters.type}
+              onValueChange={(value) => {
+                setFilters((current) => ({ ...current, type: value as TransactionFilters['type'] }));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="table-toolbar-control"><SelectValue placeholder="All Types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {Object.entries(TYPE_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-      <ListFilterBar>
-        <Input
-          value={filters.search}
-          onChange={(event) => {
-            setFilters((current) => ({ ...current, search: event.target.value }));
-            setPage(1);
-          }}
-          placeholder="Search ref, party, item, batch"
-          className="w-[240px]"
-        />
+            <Select
+              value={filters.itemCategory}
+              onValueChange={(value) => {
+                setFilters((current) => ({ ...current, itemCategory: value as TransactionFilters['itemCategory'] }));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="table-toolbar-control"><SelectValue placeholder="All Categories" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="RAW">Raw Material</SelectItem>
+                <SelectItem value="FINISHED">Finished Goods</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={filters.type}
-          onValueChange={(value) => {
-            setFilters((current) => ({ ...current, type: value as TransactionFilters['type'] }));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Types" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {Object.entries(TYPE_LABELS).map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, dateFrom: event.target.value }));
+                setPage(1);
+              }}
+              className="table-toolbar-date"
+            />
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, dateTo: event.target.value }));
+                setPage(1);
+              }}
+              className="table-toolbar-date"
+            />
 
-        <Select
-          value={filters.itemCategory}
-          onValueChange={(value) => {
-            setFilters((current) => ({ ...current, itemCategory: value as TransactionFilters['itemCategory'] }));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="RAW">Raw Material</SelectItem>
-            <SelectItem value="FINISHED">Finished Goods</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Input
-          type="date"
-          value={filters.dateFrom}
-          onChange={(event) => {
-            setFilters((current) => ({ ...current, dateFrom: event.target.value }));
-            setPage(1);
-          }}
-          className="w-[160px]"
-        />
-        <Input
-          type="date"
-          value={filters.dateTo}
-          onChange={(event) => {
-            setFilters((current) => ({ ...current, dateTo: event.target.value }));
-            setPage(1);
-          }}
-          className="w-[160px]"
-        />
-
-        <Button
-          variant="outline"
-          className="rounded-xl"
-          onClick={() => {
-            setFilters(defaultTransactionFilters);
-            setPage(1);
-          }}
-        >
-          <RotateCcw className="mr-2 h-4 w-4" /> Clear
-        </Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="Transaction Register" description={`${filteredTransactions.length} grouped transactions`}>
+            <Button
+              variant="outline"
+              className="table-toolbar-button rounded-lg"
+              onClick={() => {
+                setFilters(defaultTransactionFilters);
+                setPage(1);
+              }}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={<Button variant="outline" className="table-toolbar-button rounded-lg" onClick={exportCsv}>Export CSV</Button>}
+      >
         <div className="max-h-[calc(100vh-360px)] overflow-auto rounded-xl border border-border print:max-h-none print:overflow-visible">
-          <Table>
+          <Table className="min-w-full md:w-max">
             <TableHeader className="sticky top-0 z-10 bg-muted print:bg-transparent">
               <TableRow className="border-b-2 border-border">
                 <TableHead className="min-w-[90px] text-xs font-semibold">Date</TableHead>
@@ -505,23 +491,6 @@ function StockLedgerTable({ category, entries }: { category: ItemCategory; entri
     }
   }, [page, totalPages]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
-    const receipt = stockView.rows.reduce((sum, row) => sum + row.receiptQty, 0);
-    const issue = stockView.rows.reduce((sum, row) => sum + row.issueQty, 0);
-    const closingByBatch = new Map<string, number>();
-    stockView.rows.forEach((row) => {
-      closingByBatch.set(`${row.itemId || row.itemName}:${row.batchNo}`, row.balanceQty);
-    });
-    const closingQty = [...closingByBatch.values()].reduce((sum, value) => sum + value, 0);
-
-    return [
-      { id: 'rows', label: 'Entries', value: stockView.rows.length.toLocaleString('en-IN'), icon: BookOpen, tone: 'blue' },
-      { id: 'closing', label: 'Closing Qty', value: formatQuantity(closingQty), icon: Boxes, tone: 'purple' },
-      { id: 'in', label: 'Total Receipt', value: formatQuantity(receipt), icon: PackageCheck, tone: 'green' },
-      { id: 'out', label: 'Total Issue', value: formatQuantity(issue), icon: ArrowDownUp, tone: 'orange' },
-    ];
-  }, [stockView.rows]);
-
   const exportCsv = () => {
     exportCsvFile(`stock-ledger-${category.toLowerCase()}-${csvDateSuffix()}.csv`, [
       ['Date', 'Ref No', 'Type', 'Particulars', 'Item', 'Batch', 'Receipt', 'Issue', 'Balance', 'Rate', 'Value'],
@@ -543,105 +512,104 @@ function StockLedgerTable({ category, entries }: { category: ItemCategory; entri
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
-        <Button variant="outline" className="rounded-xl" onClick={exportCsv}>Export CSV</Button>
-      </div>
+      <ListTablePanel
+        title="Ledger Entries"
+        description={`${stockView.rows.length} entries`}
+        leftContent={(
+          <>
+            <Input
+              value={filters.search}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, search: event.target.value }));
+                setPage(1);
+              }}
+              placeholder="Search ref, item, batch, remarks"
+              className="table-toolbar-search"
+            />
 
-      <ListKpiStrip items={kpis} />
+            <Select
+              value={filters.itemId}
+              onValueChange={(value) => {
+                setFilters((current) => ({ ...current, itemId: value }));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="table-toolbar-control"><SelectValue placeholder="All Items" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Items</SelectItem>
+                {stockView.itemOptions.map((item) => (
+                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-      <ListFilterBar>
-        <Input
-          value={filters.search}
-          onChange={(event) => {
-            setFilters((current) => ({ ...current, search: event.target.value }));
-            setPage(1);
-          }}
-          placeholder="Search ref, item, batch, remarks"
-          className="w-[240px]"
-        />
+            <Select
+              value={filters.batchNo}
+              onValueChange={(value) => {
+                setFilters((current) => ({ ...current, batchNo: value }));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="table-toolbar-control"><SelectValue placeholder="All Batches" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Batches</SelectItem>
+                {stockView.batchOptions.map((batch) => (
+                  <SelectItem key={batch} value={batch}>{batch}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={filters.itemId}
-          onValueChange={(value) => {
-            setFilters((current) => ({ ...current, itemId: value }));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Items" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Items</SelectItem>
-            {stockView.itemOptions.map((item) => (
-              <SelectItem key={item} value={item}>{item}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Select
+              value={filters.type}
+              onValueChange={(value) => {
+                setFilters((current) => ({ ...current, type: value as StockLedgerFilters['type'] }));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="table-toolbar-control"><SelectValue placeholder="All Types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {Object.entries(TYPE_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={filters.batchNo}
-          onValueChange={(value) => {
-            setFilters((current) => ({ ...current, batchNo: value }));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Batches" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Batches</SelectItem>
-            {stockView.batchOptions.map((batch) => (
-              <SelectItem key={batch} value={batch}>{batch}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, dateFrom: event.target.value }));
+                setPage(1);
+              }}
+              className="table-toolbar-date"
+            />
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, dateTo: event.target.value }));
+                setPage(1);
+              }}
+              className="table-toolbar-date"
+            />
 
-        <Select
-          value={filters.type}
-          onValueChange={(value) => {
-            setFilters((current) => ({ ...current, type: value as StockLedgerFilters['type'] }));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Types" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {Object.entries(TYPE_LABELS).map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Input
-          type="date"
-          value={filters.dateFrom}
-          onChange={(event) => {
-            setFilters((current) => ({ ...current, dateFrom: event.target.value }));
-            setPage(1);
-          }}
-          className="w-[160px]"
-        />
-        <Input
-          type="date"
-          value={filters.dateTo}
-          onChange={(event) => {
-            setFilters((current) => ({ ...current, dateTo: event.target.value }));
-            setPage(1);
-          }}
-          className="w-[160px]"
-        />
-
-        <Button
-          variant="outline"
-          className="rounded-xl"
-          onClick={() => {
-            setFilters(defaultStockFilters);
-            setPage(1);
-          }}
-        >
-          <RotateCcw className="mr-2 h-4 w-4" /> Clear
-        </Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="Ledger Entries" description={`${stockView.rows.length} entries`}>
+            <Button
+              variant="outline"
+              className="table-toolbar-button rounded-lg"
+              onClick={() => {
+                setFilters(defaultStockFilters);
+                setPage(1);
+              }}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={<Button variant="outline" className="table-toolbar-button rounded-lg" onClick={exportCsv}>Export CSV</Button>}
+      >
         <div className="max-h-[calc(100vh-360px)] overflow-auto rounded-xl border border-border print:max-h-none print:overflow-visible">
-          <Table>
+          <Table className="min-w-full md:w-max">
             <TableHeader className="sticky top-0 z-10 bg-muted print:bg-transparent">
               <TableRow className="border-b-2 border-border">
                 <TableHead className="min-w-[90px] text-xs font-semibold">Date</TableHead>

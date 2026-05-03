@@ -2,6 +2,7 @@ export type QualityIssueType = 'defect' | 'testing' | 'complaint';
 export type QualityRequestStatus = 'pending' | 'approved' | 'under_testing' | 'completed' | 'closed';
 export type QualityTestResult = 'pass' | 'fail';
 export type QualityClosureDecision = 'accept' | 'reject';
+export type QualityRequestSourceType = 'sampling';
 
 export interface QualityRequestCreatePayload {
   requestNo?: string;
@@ -34,6 +35,15 @@ export interface QualityRequestClosePayload {
 
 export interface QualityRequestRecord {
   id: string;
+  sourceType?: QualityRequestSourceType;
+  stockMovementId?: string;
+  stockMovementItemId?: string;
+  stockMovementNo?: string;
+  itemId?: string;
+  itemType?: 'raw' | 'finished';
+  productionBatchId?: string;
+  productionBatchNo?: string;
+  productionNo?: string;
   requestNo: string;
   date: string;
   itemName: string;

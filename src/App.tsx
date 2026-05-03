@@ -15,7 +15,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import SuperAdminDashboardPage from '@/pages/SuperAdminDashboardPage';
 import SuperAdminCompaniesPage from '@/pages/SuperAdminCompaniesPage';
 import SuperAdminCompanyDetailPage from '@/pages/SuperAdminCompanyDetailPage';
-import { DepartmentsPage, DesignationsPage, RolesPage, UsersPage } from '@/modules/admin';
+import { DepartmentsPage, DesignationsPage, ItemCategoriesPage, RolesPage, UsersPage } from '@/modules/admin';
 import { ItemMasterPage } from '@/modules/items';
 import { PartyMasterPage, PartyViewPage } from '@/modules/parties';
 import { GINListPage, GoodsInwardPage, GINViewPage } from '@/modules/purchases';
@@ -157,6 +157,14 @@ const App = () => (
                 element={(
                   <ProtectedRoute allowedAccountTypes={['COMPANY_ADMIN']}>
                     <DesignationsPage />
+                  </ProtectedRoute>
+                )}
+              />
+              <Route
+                path="/admin/item-categories"
+                element={(
+                  <ProtectedRoute allowedAccountTypes={['COMPANY_ADMIN']}>
+                    <ItemCategoriesPage />
                   </ProtectedRoute>
                 )}
               />

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, Edit2, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import PanelCard from '@/components/PanelCard';
@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { companyAdminAPI } from '@/services/api';
 import { getErrorMessage } from '@/lib/apiError';
+import { csvDateSuffix, exportCsvFile } from '@/lib/csv';
 import type { DesignationRecord, DesignationUpsertPayload } from '@/types';
 
 const emptyForm: DesignationUpsertPayload = {
@@ -26,6 +27,7 @@ export default function DesignationsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DesignationRecord | null>(null);
   const [form, setForm] = useState<DesignationUpsertPayload>(emptyForm);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -41,6 +43,19 @@ export default function DesignationsPage() {
 
     void load();
   }, []);
+
+  const filteredDesignations = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return designations;
+    return designations.filter((record) => record.name.toLowerCase().includes(query));
+  }, [designations, search]);
+
+  const exportCsv = () => {
+    exportCsvFile(`designations-${csvDateSuffix()}.csv`, [
+      ['Designation', 'Status'],
+      ...filteredDesignations.map((record) => [record.name, record.isActive ? 'Active' : 'Inactive']),
+    ]);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -95,16 +110,25 @@ export default function DesignationsPage() {
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Designations' },
         ]}
-        action={(
-          <Button className="rounded-xl" onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Designation
-          </Button>
-        )}
       />
 
       <PanelCard title="Designation Master" subtitle="Job titles available inside this company">
         <DataTable
+          toolbar={(
+            <div className="table-toolbar">
+              <div className="table-toolbar-filters">
+                <Input placeholder="Search designations..." value={search} onChange={(event) => setSearch(event.target.value)} className="table-toolbar-search" />
+              </div>
+              <div className="table-toolbar-actions">
+                <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+                  <Download className="mr-2 h-4 w-4" /> Export CSV
+                </Button>
+                <Button className="table-toolbar-button" onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Designation
+                </Button>
+              </div>
+            </div>
+          )}
           columns={[
             { key: 'name', header: 'Designation', render: (row: DesignationRecord) => <span className="font-medium">{row.name}</span> },
             {
@@ -115,9 +139,7 @@ export default function DesignationsPage() {
               ),
             },
           ]}
-          data={designations}
-          searchKey="name"
-          searchPlaceholder="Search designations..."
+          data={filteredDesignations}
           isLoading={loading}
           actions={(row) => (
             <div className="flex items-center justify-end gap-1">

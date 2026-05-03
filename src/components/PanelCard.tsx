@@ -19,17 +19,17 @@ export default function PanelCard({
   bodyClassName,
 }: PanelCardProps) {
   return (
-    <section className={cn('rounded-2xl border border-border/80 bg-card shadow-[var(--shadow-surface)]', className)}>
+    <section className={cn('rounded-xl border border-border bg-card', className)}>
       {(title || actions) && (
-        <header className="flex items-start justify-between gap-3 border-b border-border/70 px-5 py-4">
-          <div>
-            {title ? <h3 className="text-xl font-semibold tracking-tight text-foreground">{title}</h3> : null}
+        <header className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            {title ? <h3 className="text-base font-semibold text-foreground">{title}</h3> : null}
             {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
           </div>
-          {actions}
+          {actions ? <div className="min-w-0 shrink-0">{actions}</div> : null}
         </header>
       )}
-      <div className={cn('px-5 py-4', bodyClassName)}>{children}</div>
+      <div className={cn('px-4 py-4', bodyClassName)}>{children}</div>
     </section>
   );
 }

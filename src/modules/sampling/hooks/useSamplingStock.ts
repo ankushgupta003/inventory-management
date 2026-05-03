@@ -15,9 +15,9 @@ export interface StockBatch {
 }
 
 const fallbackItems: ItemRecord[] = [
-  { id: '1', storeName: 'Steel Rod 10mm', tallyName: 'Steel Rod 10mm', sku: 'SR-10', itemType: 'raw', category: 'Raw', baseUnit: 'kg', hsnCode: '7214', gstRate: 18, isActive: true, createdAt: '' },
-  { id: '2', storeName: 'Copper Wire 2mm', tallyName: 'Copper Wire 2mm', sku: 'CW-2', itemType: 'raw', category: 'Raw', baseUnit: 'kg', hsnCode: '7408', gstRate: 18, isActive: true, createdAt: '' },
-  { id: '3', storeName: 'Packing Box Large', tallyName: 'Packing Box Large', sku: 'PB-L', itemType: 'raw', category: 'Packaging', baseUnit: 'pcs', hsnCode: '4819', gstRate: 12, isActive: true, createdAt: '' },
+  { id: '1', storeName: 'Steel Rod 10mm', tallyName: 'Steel Rod 10mm', sku: 'SR-10', itemType: 'raw', categoryId: 'cat-raw-metal', category: 'Raw', baseUnit: 'kg', hsnCode: '7214', gstRate: 18, isActive: true, createdAt: '' },
+  { id: '2', storeName: 'Copper Wire 2mm', tallyName: 'Copper Wire 2mm', sku: 'CW-2', itemType: 'raw', categoryId: 'cat-raw-metal', category: 'Raw', baseUnit: 'kg', hsnCode: '7408', gstRate: 18, isActive: true, createdAt: '' },
+  { id: '3', storeName: 'Packing Box Large', tallyName: 'Packing Box Large', sku: 'PB-L', itemType: 'raw', categoryId: 'cat-raw-pack', category: 'Packaging', baseUnit: 'pcs', hsnCode: '4819', gstRate: 12, isActive: true, createdAt: '' },
 ];
 
 const fallbackStock: StockBatch[] = [
@@ -37,7 +37,7 @@ function computeBalances(entries: LedgerEntry[]): StockBatch[] {
       availableQty: 0,
       mfgDate: entry.mfgDate,
       expiryDate: entry.expiryDate,
-      manufacturedBy: entry.particulars || '—',
+      manufacturedBy: entry.particulars || '-',
     };
     map.set(key, {
       ...base,

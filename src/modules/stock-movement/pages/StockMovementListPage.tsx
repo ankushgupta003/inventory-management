@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRightLeft, Eye, PackageOpen, TestTubeDiagonal, Truck } from 'lucide-react';
+import { Download, Eye, Plus, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
-import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
+import { ListPageShell, ListTablePanel } from '@/components/list';
 import CompactSelect from '@/components/CompactSelect';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { stockMovementApi } from '../services/stockMovementApi';
@@ -47,28 +47,22 @@ export default function StockMovementListPage() {
     return records.filter((r) => {
       if (type !== 'all' && r.type !== type) return false;
       if (!q) return true;
-      const text = `${r.movementNo} ${r.itemName} ${r.batchNo} ${r.mrsNo || ''}`.toLowerCase();
+      const text = `${r.movementNo} ${r.itemName} ${r.batchNo} ${r.mrsNo || ''} ${r.qualityRequests?.map((request) => request.requestNo).join(' ') || ''}`.toLowerCase();
       return text.includes(q);
     });
   }, [records, search, type]);
 
-  const kpis: ListPageKpi[] = useMemo(() => {
+  const summary = useMemo(() => {
     const issueCount = records.filter((r) => r.type === 'issue').length;
     const transferCount = records.filter((r) => r.type === 'transfer').length;
     const samplingCount = records.filter((r) => r.type === 'sampling').length;
     const totalQty = records.reduce((sum, r) => sum + (r.quantity || 0), 0);
-    return [
-      { id: 'total', label: 'Total Movements', value: records.length.toLocaleString('en-IN'), icon: ArrowRightLeft, tone: 'blue' },
-      { id: 'issue', label: 'Issues', value: issueCount.toLocaleString('en-IN'), icon: PackageOpen, tone: 'orange' },
-      { id: 'sampling', label: 'Sampling', value: samplingCount.toLocaleString('en-IN'), icon: TestTubeDiagonal, tone: 'purple' },
-      { id: 'qty', label: 'Moved Qty', value: totalQty.toLocaleString('en-IN'), icon: Truck, tone: 'green' },
-      { id: 'transfer', label: 'Transfers', value: transferCount.toLocaleString('en-IN'), icon: Truck, tone: 'blue' },
-    ].slice(0, 4);
+    return { issueCount, transferCount, samplingCount, totalQty };
   }, [records]);
 
   const exportCsv = () => {
     exportCsvFile(`stock-movement-list-${csvDateSuffix()}.csv`, [
-      ['Movement No', 'Date', 'Type', 'MRS No', 'Production Batch', 'Item', 'Batch', 'Qty', 'From', 'To'],
+      ['Movement No', 'Date', 'Type', 'MRS No', 'Production Batch', 'Item', 'Batch', 'Qty', 'Sample Reports', 'From', 'To'],
       ...filtered.map((r) => [
         r.movementNo,
         r.date,
@@ -78,6 +72,7 @@ export default function StockMovementListPage() {
         r.itemName,
         r.batchNo,
         r.quantity,
+        r.qualityRequests?.map((request) => request.requestNo).join(', ') || '-',
         r.fromLocation || '-',
         r.toLocation || '-',
       ]),
@@ -93,43 +88,75 @@ export default function StockMovementListPage() {
     { key: 'itemName', header: 'Item' },
     { key: 'batchNo', header: 'Batch' },
     { key: 'quantity', header: 'Qty', className: 'text-right', render: (r: StockMovementRecord) => r.quantity.toLocaleString('en-IN') },
+    {
+      key: 'qualityRequests',
+      header: 'Sample Reports',
+      render: (r: StockMovementRecord) =>
+        r.qualityRequests?.length ? (
+          <div className="flex flex-wrap gap-1">
+            {r.qualityRequests.map((request) => (
+              <button
+                key={request.id}
+                type="button"
+                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                onClick={() => navigate(`/quality-requests/${request.id}`)}
+              >
+                {request.requestNo}
+              </button>
+            ))}
+          </div>
+        ) : (
+          '-'
+        ),
+    },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Stock Movement"
-        description="Issue, transfer, and sampling records in one operational list."
+        description={`${records.length.toLocaleString('en-IN')} movement records. ${summary.issueCount.toLocaleString('en-IN')} issues, ${summary.transferCount.toLocaleString('en-IN')} transfers, ${summary.samplingCount.toLocaleString('en-IN')} sampling.`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Stock Movement' },
         ]}
-        addLabel="Create Movement"
-        onAdd={() => navigate('/stock-movement/create')}
-        onExport={exportCsv}
       />
 
-      <ListKpiStrip items={kpis} />
-
-      <ListFilterBar>
-        <div className="min-w-[240px] flex-1">
-          <Input placeholder="Search movement no, item, batch, MRS..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <CompactSelect
-          value={type}
-          onChange={(value) => setType(value as 'all' | StockMovementType)}
-          options={[
-            { value: 'all', label: 'All Types' },
-            { value: 'issue', label: 'Issue' },
-            { value: 'transfer', label: 'Transfer' },
-            { value: 'sampling', label: 'Sampling' },
-          ]}
-          className="w-40"
-        />
-        <Button variant="outline" onClick={() => { setSearch(''); setType('all'); }}>Clear</Button>
-      </ListFilterBar>
-
-      <ListTablePanel title="Movement Records" description={`${filtered.length} records`}>
+      <ListTablePanel
+        title="Movement Records"
+        description={`${filtered.length} records`}
+        leftContent={(
+          <>
+            <div className="table-toolbar-search">
+              <Input placeholder="Search movement no, item, batch, MRS..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <CompactSelect
+              value={type}
+              onChange={(value) => setType(value as 'all' | StockMovementType)}
+              options={[
+                { value: 'all', label: 'All Types' },
+                { value: 'issue', label: 'Issue' },
+                { value: 'transfer', label: 'Transfer' },
+                { value: 'sampling', label: 'Sampling' },
+              ]}
+              className="table-toolbar-control-sm"
+            />
+            <Button className="table-toolbar-button" variant="outline" onClick={() => { setSearch(''); setType('all'); }}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
+          </>
+        )}
+        rightContent={(
+          <>
+            <Button className="table-toolbar-button" variant="outline" onClick={exportCsv}>
+              <Download className="mr-2 h-4 w-4" /> Export CSV
+            </Button>
+            <Button className="table-toolbar-button" onClick={() => navigate('/stock-movement/create')}>
+              <Plus className="mr-2 h-4 w-4" /> Create Movement
+            </Button>
+          </>
+        )}
+      >
         <DataTable<StockMovementRecord>
           columns={columns}
           data={filtered}

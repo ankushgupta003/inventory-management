@@ -6,7 +6,7 @@ import { analyticsFixture } from '@/modules/analytics/testFixtures';
 import * as analytics from '@/modules/analytics';
 
 describe('ReportsPage', () => {
-  it('renders analytics tabs and supports csv export', async () => {
+  it('renders simple report sections and supports csv export', async () => {
     vi.spyOn(analytics, 'fetchReportDataset').mockResolvedValue(analyticsFixture);
     if (!URL.createObjectURL) {
       Object.defineProperty(URL, 'createObjectURL', { value: () => 'blob:mock', writable: true });
@@ -23,10 +23,10 @@ describe('ReportsPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText(/Workflow Funnel/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Bottleneck Summary/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Inventory Health/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Movement Analysis/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Export CSV/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /^Export$/i })[0]);
     expect(createObjectURL).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalled();
 

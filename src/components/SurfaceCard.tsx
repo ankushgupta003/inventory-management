@@ -14,8 +14,8 @@ interface SurfaceCardProps {
 
 const variantStyles: Record<SurfaceCardVariant, string> = {
   default: 'bg-card border-border',
-  muted: 'bg-shell-surface-muted border-border/80',
-  accent: 'bg-shell-surface-elevated border-primary/20',
+  muted: 'bg-shell-surface-muted border-border',
+  accent: 'bg-shell-surface-elevated border-border',
 };
 
 const paddingStyles: Record<SurfaceCardPadding, string> = {
@@ -35,10 +35,10 @@ export default function SurfaceCard({
   return (
     <div
       className={cn(
-        'rounded-2xl border shadow-[var(--shadow-surface)]',
+        'rounded-xl border',
         variantStyles[variant],
         paddingStyles[padding],
-        interactive && 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]',
+        interactive && 'transition-colors duration-200 hover:border-primary/40 hover:bg-muted/10',
         className,
       )}
     >

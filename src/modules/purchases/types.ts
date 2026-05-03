@@ -17,6 +17,14 @@ export interface PurchaseGinItem {
   mfgDate: string;
   expiryDate: string;
   rate: number;
+  taxableValue: number;
+  cgstRate: number;
+  cgstAmount: number;
+  sgstRate: number;
+  sgstAmount: number;
+  igstRate: number;
+  igstAmount: number;
+  lineTotalAmount: number;
   amount: number;
   remarks: string;
 }
@@ -30,6 +38,10 @@ export interface PurchaseGinListRow {
   billNo: string;
   gateEntryNo: string;
   entryDate: string;
+  totalTaxableValue: number;
+  totalCgstAmount: number;
+  totalSgstAmount: number;
+  totalIgstAmount: number;
   totalAmount: number;
   totalAcceptedQty: number;
   totalRejectedQty: number;
@@ -52,6 +64,10 @@ export interface PurchaseGinRecord {
   preparedBy: string;
   sanctionedBy: string;
   authorizedSignatory: string;
+  totalTaxableValue: number;
+  totalCgstAmount: number;
+  totalSgstAmount: number;
+  totalIgstAmount: number;
   totalAmount: number;
   totalAcceptedQty: number;
   totalRejectedQty: number;
