@@ -55,7 +55,7 @@ export function useProductionStock() {
     const load = async () => {
       try {
         const [itemsData, ledgerData] = await Promise.all([
-          itemsApi.getAll(),
+          itemsApi.getAll({ paginate: false, status: 'active' }),
           ledgerApi.getAll({}, 1, 2000).then((r) => r.data),
         ]);
         if (!active) return;

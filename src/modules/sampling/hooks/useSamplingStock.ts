@@ -3,6 +3,7 @@ import { itemsApi } from '@/modules/items/services/itemsApi';
 import { ledgerApi } from '@/modules/ledger/services/ledgerApi';
 import type { ItemRecord } from '@/modules/items/types';
 import type { LedgerEntry } from '@/modules/ledger/types';
+import { USE_MOCK } from '@/services/api';
 
 export interface StockBatch {
   itemName: string;
@@ -58,17 +59,17 @@ export function useSamplingStock() {
     const load = async () => {
       try {
         const [itemsData, ledgerData] = await Promise.all([
-          itemsApi.getAll(),
+          itemsApi.getAll({ paginate: false, status: 'active', itemType: 'raw' }),
           ledgerApi.getAll({}, 1, 2000).then((r) => r.data),
         ]);
         if (!active) return;
-        setItems(itemsData.length ? itemsData : fallbackItems);
+        setItems(itemsData.length ? itemsData : (USE_MOCK ? fallbackItems : []));
         const computed = computeBalances(ledgerData ?? []);
-        setStock(computed.length ? computed : fallbackStock);
+        setStock(computed.length ? computed : (USE_MOCK ? fallbackStock : []));
       } catch {
         if (!active) return;
-        setItems(fallbackItems);
-        setStock(fallbackStock);
+        setItems(USE_MOCK ? fallbackItems : []);
+        setStock(USE_MOCK ? fallbackStock : []);
       } finally {
         if (active) setLoading(false);
       }

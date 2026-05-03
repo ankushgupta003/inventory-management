@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, TestTube2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -223,9 +224,7 @@ export default function SamplingCreatePage() {
                       </td>
                       <td className="px-2.5 py-2 pt-3">
                         {fields.length > 1 && (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
+                          <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => remove(idx)} />
                         )}
                       </td>
                     </tr>

@@ -3,6 +3,7 @@ import { itemsApi } from '@/modules/items/services/itemsApi';
 import { ledgerApi } from '@/modules/ledger/services/ledgerApi';
 import type { ItemRecord } from '@/modules/items/types';
 import type { LedgerEntry } from '@/modules/ledger/types';
+import { USE_MOCK } from '@/services/api';
 
 export interface StockBatch {
   itemName: string;
@@ -47,27 +48,35 @@ function computeBalances(entries: LedgerEntry[]): StockBatch[] {
   return Array.from(map.values()).filter((b) => b.availableQty > 0);
 }
 
-export function useIssueStock() {
+export function useIssueStock(enabled = true) {
   const [items, setItems] = useState<ItemRecord[]>([]);
   const [stock, setStock] = useState<StockBatch[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
+    if (!enabled) {
+      setItems([]);
+      setStock([]);
+      setLoading(false);
+      return;
+    }
+
     let active = true;
     const load = async () => {
+      setLoading(true);
       try {
         const [itemsData, ledgerData] = await Promise.all([
-          itemsApi.getAll(),
+          itemsApi.getAll({ paginate: false, status: 'active', itemType: 'raw' }),
           ledgerApi.getAll({}, 1, 2000).then((r) => r.data),
         ]);
         if (!active) return;
-        setItems(itemsData.length ? itemsData : fallbackItems);
+        setItems(itemsData.length ? itemsData : (USE_MOCK ? fallbackItems : []));
         const computed = computeBalances(ledgerData ?? []);
-        setStock(computed.length ? computed : fallbackStock);
+        setStock(computed.length ? computed : (USE_MOCK ? fallbackStock : []));
       } catch {
         if (!active) return;
-        setItems(fallbackItems);
-        setStock(fallbackStock);
+        setItems(USE_MOCK ? fallbackItems : []);
+        setStock(USE_MOCK ? fallbackStock : []);
       } finally {
         if (active) setLoading(false);
       }
@@ -76,7 +85,7 @@ export function useIssueStock() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [enabled]);
 
   const itemNameById = useMemo(() => {
     const map = new Map<string, string>();

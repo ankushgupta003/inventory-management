@@ -1,28 +1,27 @@
-import { useMemo } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import axios from 'axios';
+import { useEffect, useMemo, useState } from 'react';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Trash2, Printer } from 'lucide-react';
+import { Plus, Printer, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import TableActionButton from '@/components/TableActionButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import PageHeader from '@/components/PageHeader';
+import { useAuth } from '@/contexts/AuthContext';
+import { getErrorMessage } from '@/lib/apiError';
+import { productionApi } from '@/modules/production/services/productionApi';
+import { stockMovementApi } from '@/modules/stock-movement/services/stockMovementApi';
 import FormSection from '../components/FormSection';
 import DataTable from '../components/DataTable';
-import { bmrSchema, type BmrSchemaValues } from '../schemas/bmrSchema';
 import { mockBmrData } from '../mockData';
-import {
-  buildRawMaterialsFromMrs,
-  getBatch,
-  loadBmr,
-  loadStockMovements,
-  saveBmrDraft,
-  submitBmr,
-} from '@/modules/production/productionStore';
+import { bmrSchema, type BmrSchemaValues } from '../schemas/bmrSchema';
+import { buildDefaultBmrValues, createEmptyProcessRow, createEmptyRawMaterialRow, hasIssuedMaterials } from '../utils/bmrData';
 
 const STORAGE_KEY = 'bmr_form_draft';
 const BATCH_KEY = 'bmr_batch_draft';
@@ -38,7 +37,7 @@ const loadDraft = (): BmrSchemaValues | null => {
   }
 };
 
-const loadBatch = () => {
+const loadBatchOverride = (): BmrSchemaValues['batchInfo'] | null => {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem(BATCH_KEY);
   if (!raw) return null;
@@ -49,65 +48,42 @@ const loadBatch = () => {
   }
 };
 
-const createProcessRow = () => ({
-  id: `ps-${Date.now()}`,
-  stepName: '',
-  startTime: '',
-  endTime: '',
-  operatorName: '',
-  checkedBy: '',
-  remarks: '',
-});
-
 type BmrFormProps = {
   embedded?: boolean;
   batchId?: string;
   onStatusChange?: () => void;
 };
 
+const noticeClassName = 'rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground';
+
+function isHttpStatus(error: unknown, status: number) {
+  return axios.isAxiosError(error) && error.response?.status === status;
+}
+
 export default function BMRFormPage({ embedded = false, batchId, onStatusChange }: BmrFormProps) {
   const navigate = useNavigate();
   const params = useParams();
   const resolvedBatchId = batchId ?? params.batchId;
-  const batchInfoOverride = loadBatch();
-  const batch = resolvedBatchId ? getBatch(resolvedBatchId) : null;
-  const storedBmr = resolvedBatchId ? loadBmr(resolvedBatchId) : null;
-  const emptyRawMaterials: BmrSchemaValues['rawMaterials'] = [
-    {
-      id: `rm-${Date.now()}`,
-      materialName: '',
-      requiredQty: 0,
-      issuedQty: 0,
-      usedQty: 0,
-      returnedQty: 0,
-    },
-  ];
-  const rawMaterialsFromMrs = resolvedBatchId
-    ? buildRawMaterialsFromMrs(resolvedBatchId, emptyRawMaterials)
-    : mockBmrData.rawMaterials;
-
-  const emptyBmr: BmrSchemaValues = {
-    batchInfo: batch
-      ? {
-        productName: batch.productName,
-        batchNo: batch.batchNo,
-        batchSize: batch.batchSize,
-        mfgDate: batch.mfgDate,
-        expDate: batch.expDate,
-      }
-      : (batchInfoOverride ?? mockBmrData.batchInfo),
-    rawMaterials: rawMaterialsFromMrs,
-    processSteps: [createProcessRow()],
-    sterilization: { date: '', quantity: 0, reference: '' },
-    packing: { packingType: '', quantity: 0, doneBy: '' },
-    labelling: { labelDetails: '', checkedBy: '' },
-    finalOutput: { expectedQty: 0, actualQty: 0, rejectedQty: 0 },
-    qa: { status: 'PENDING', remarks: '', approvedBy: '' },
-  };
+  const { hasPermission } = useAuth();
+  const [localInitialValues] = useState<BmrSchemaValues>(() => {
+    const draft = loadDraft();
+    const batchInfoOverride = loadBatchOverride();
+    return buildDefaultBmrValues({
+      existingData: draft
+        ? {
+            ...draft,
+            batchInfo: batchInfoOverride ?? draft.batchInfo,
+          }
+        : {
+            ...mockBmrData,
+            batchInfo: batchInfoOverride ?? mockBmrData.batchInfo,
+          },
+    });
+  });
 
   const form = useForm<BmrSchemaValues>({
     resolver: zodResolver(bmrSchema),
-    defaultValues: storedBmr?.data ?? (resolvedBatchId ? emptyBmr : (loadDraft() ?? mockBmrData)),
+    defaultValues: resolvedBatchId ? buildDefaultBmrValues({ existingData: null }) : localInitialValues,
     mode: 'onChange',
   });
 
@@ -117,6 +93,7 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
     watch,
     control,
     setValue,
+    reset,
     formState: { errors, isValid },
     getValues,
   } = form;
@@ -128,6 +105,101 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
   const processSteps = watch('processSteps');
   const finalOutput = watch('finalOutput');
 
+  const [loading, setLoading] = useState(Boolean(resolvedBatchId));
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [hasIssue, setHasIssue] = useState(!resolvedBatchId);
+  const [batchLocked, setBatchLocked] = useState(Boolean(resolvedBatchId));
+  const [loadNotice, setLoadNotice] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  const canViewMovements = hasPermission('stock_movement.view');
+  const canEditBmr = !resolvedBatchId || hasPermission('production.edit');
+  const isReadOnly = Boolean(resolvedBatchId) && !canEditBmr;
+
+  useEffect(() => {
+    if (!resolvedBatchId) {
+      reset(localInitialValues);
+      setBatchLocked(false);
+      setHasIssue(true);
+      setLoadNotice(null);
+      setNotFound(false);
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    const load = async () => {
+      setLoading(true);
+      setLoadNotice(null);
+      setNotFound(false);
+      try {
+        const batch = await productionApi.getById(resolvedBatchId);
+
+        if (!active) return;
+
+        const [bmrResult, mrsResult, movementResult] = await Promise.all([
+          productionApi.getBmr(resolvedBatchId)
+            .then((data) => ({ ok: true as const, data }))
+            .catch((error: unknown) => ({ ok: false as const, error })),
+          productionApi.getMrs(resolvedBatchId)
+            .then((data) => ({ ok: true as const, data }))
+            .catch((error: unknown) => ({ ok: false as const, error })),
+          canViewMovements
+            ? stockMovementApi.getAll({ productionBatchId: resolvedBatchId })
+                .then((data) => ({ ok: true as const, data }))
+                .catch((error: unknown) => ({ ok: false as const, error }))
+            : Promise.resolve({ ok: true as const, data: [] }),
+        ]);
+
+        const notices: string[] = [];
+        const existingData = bmrResult.ok ? (bmrResult.data?.data ?? null) : null;
+        const mrsRecords = mrsResult.ok ? mrsResult.data : [];
+        const movements = canViewMovements && movementResult.ok ? movementResult.data : [];
+
+        if (!bmrResult.ok) {
+          notices.push(getErrorMessage(bmrResult.error, 'Unable to load saved BMR data.'));
+        }
+
+        if (!mrsResult.ok) {
+          notices.push(getErrorMessage(mrsResult.error, 'Unable to load linked MRS records.'));
+        }
+
+        if (canViewMovements && !movementResult.ok) {
+          notices.push(getErrorMessage(movementResult.error, 'Unable to load stock movement history.'));
+        }
+
+        reset(
+          buildDefaultBmrValues({
+            batch,
+            existingData,
+            mrsRecords,
+            movements,
+          }),
+        );
+        setBatchLocked(Boolean(batch));
+        setHasIssue(hasIssuedMaterials({ mrsRecords, movements }));
+        setLoadNotice(notices.length ? notices.join(' ') : null);
+      } catch (error) {
+        if (!active) return;
+        if (isHttpStatus(error, 404)) {
+          setNotFound(true);
+        } else {
+          setLoadNotice(getErrorMessage(error, 'Failed to load BMR data'));
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [canViewMovements, localInitialValues, reset, resolvedBatchId]);
+
   const yieldPercent = useMemo(() => {
     const expected = finalOutput?.expectedQty ?? 0;
     const actual = finalOutput?.actualQty ?? 0;
@@ -135,35 +207,53 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
     return Number(((actual / expected) * 100).toFixed(2));
   }, [finalOutput]);
 
-  const hasIssue = resolvedBatchId
-    ? loadStockMovements(resolvedBatchId).some((m) => m.type === 'ISSUE')
-    : true;
-
-  const saveDraft = () => {
-    const values = getValues();
-    if (resolvedBatchId) {
-      saveBmrDraft(resolvedBatchId, values);
-    } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+  const saveDraft = async () => {
+    if (isReadOnly) {
+      toast.error('You do not have permission to edit this BMR');
+      return;
     }
-    toast.success('BMR draft saved');
-    onStatusChange?.();
+
+    const values = getValues();
+    setSavingDraft(true);
+    try {
+      if (resolvedBatchId) {
+        await productionApi.saveBmr(resolvedBatchId, values);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+      }
+      toast.success('BMR draft saved');
+      onStatusChange?.();
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to save BMR draft'));
+    } finally {
+      setSavingDraft(false);
+    }
   };
 
-  const onSubmit = (values: BmrSchemaValues) => {
-    if (resolvedBatchId) {
-      const movements = loadStockMovements(resolvedBatchId);
-      const hasIssue = movements.some((m) => m.type === 'ISSUE');
-      if (!hasIssue) {
-        toast.error('Record stock issue before submitting BMR');
-        return;
-      }
-      submitBmr(resolvedBatchId, values);
-    } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+  const onSubmit = async (values: BmrSchemaValues) => {
+    if (isReadOnly) {
+      toast.error('You do not have permission to edit this BMR');
+      return;
     }
-    toast.success('BMR submitted');
-    onStatusChange?.();
+
+    setSubmitting(true);
+    try {
+      if (resolvedBatchId) {
+        if (!hasIssue) {
+          toast.error('Record stock issue before submitting BMR');
+          return;
+        }
+        await productionApi.submitBmr(resolvedBatchId, values);
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+      }
+      toast.success('BMR submitted');
+      onStatusChange?.();
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to submit BMR'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const hasErrors = (section: 'page1' | 'page2' | 'page3' | 'page4') => {
@@ -203,6 +293,14 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
 
   const fieldClass = (err?: unknown) => (err ? 'border-destructive' : '');
 
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading BMR...</div>;
+  }
+
+  if (notFound) {
+    return <div className="text-sm text-muted-foreground">Batch not found.</div>;
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {!embedded && (
@@ -217,7 +315,7 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => navigate('/production/create')}>Create Batch</Button>
               <Button variant="outline" onClick={() => navigate(resolvedBatchId ? `/bmr/print/${resolvedBatchId}` : '/bmr/print')}>
-                <Printer className="h-4 w-4 mr-2" /> Print View
+                <Printer className="mr-2 h-4 w-4" /> Print View
               </Button>
             </div>
           )}
@@ -225,8 +323,8 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
       )}
 
       {!embedded && (
-        <div className="sticky top-0 z-10 border border-border bg-background/95 backdrop-blur-sm p-3 rounded-md">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+        <div className="sticky top-0 z-10 rounded-md border border-border bg-background/95 p-3 backdrop-blur-sm">
+          <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-5">
             <div>
               <div className="text-muted-foreground">Product Name</div>
               <div className="font-semibold">{watch('batchInfo.productName')}</div>
@@ -251,6 +349,18 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
         </div>
       )}
 
+      {loadNotice ? (
+        <div className={noticeClassName}>
+          {loadNotice}
+        </div>
+      ) : null}
+
+      {isReadOnly ? (
+        <div className={noticeClassName}>
+          You can review this BMR, but saving or submitting changes requires `production.edit`.
+        </div>
+      ) : null}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Tabs defaultValue="page1" className="space-y-4">
           <TabsList className="flex flex-wrap justify-start">
@@ -260,39 +370,60 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
             <TabsTrigger value="page4">{tabLabel('Page 4: Final Output & QA', 'page4')}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="page1" className="space-y-4">
+          <fieldset disabled={isReadOnly} className={!isReadOnly ? 'space-y-4' : 'space-y-4 opacity-80'}>
+            <TabsContent value="page1" className="space-y-4">
             <FormSection title="Batch Header" description="Basic information as per the BMR document header.">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label>Product Name *</Label>
-                  <Input {...register('batchInfo.productName')} className={fieldClass(errors.batchInfo?.productName)} />
+                  <Input
+                    {...register('batchInfo.productName')}
+                    readOnly={batchLocked}
+                    className={`${fieldClass(errors.batchInfo?.productName)} ${batchLocked ? 'bg-muted/50' : ''}`}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Batch No *</Label>
-                  <Input {...register('batchInfo.batchNo')} className={fieldClass(errors.batchInfo?.batchNo)} />
+                  <Input
+                    {...register('batchInfo.batchNo')}
+                    readOnly={batchLocked}
+                    className={`${fieldClass(errors.batchInfo?.batchNo)} ${batchLocked ? 'bg-muted/50' : ''}`}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Batch Size *</Label>
-                  <Input {...register('batchInfo.batchSize')} className={fieldClass(errors.batchInfo?.batchSize)} />
+                  <Input
+                    {...register('batchInfo.batchSize')}
+                    readOnly={batchLocked}
+                    className={`${fieldClass(errors.batchInfo?.batchSize)} ${batchLocked ? 'bg-muted/50' : ''}`}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>MFG Date *</Label>
-                  <Input type="date" {...register('batchInfo.mfgDate')} className={fieldClass(errors.batchInfo?.mfgDate)} />
+                  <Input
+                    type="date"
+                    {...register('batchInfo.mfgDate')}
+                    readOnly={batchLocked}
+                    className={`${fieldClass(errors.batchInfo?.mfgDate)} ${batchLocked ? 'bg-muted/50' : ''}`}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>EXP Date *</Label>
-                  <Input type="date" {...register('batchInfo.expDate')} className={fieldClass(errors.batchInfo?.expDate)} />
+                  <Input
+                    type="date"
+                    {...register('batchInfo.expDate')}
+                    readOnly={batchLocked}
+                    className={`${fieldClass(errors.batchInfo?.expDate)} ${batchLocked ? 'bg-muted/50' : ''}`}
+                  />
                 </div>
               </div>
             </FormSection>
 
             <FormSection
               title="Raw Material Consumption"
-              description="Issued quantities are pulled from mock issue data and are read-only."
+              description="Required and issued quantities are pulled from linked MRS and issue records."
             >
-              <DataTable
-                headers={['Sr No', 'Material Name', 'Required Qty', 'Issued Qty', 'Used Qty', 'Returned Qty', '']}
-              >
+              <DataTable headers={['Sr No', 'Material Name', 'Required Qty', 'Issued Qty', 'Used Qty', 'Returned Qty', '']}>
                 {rawMaterialsArray.fields.map((field, idx) => {
                   const rowError = errors.rawMaterials?.[idx];
                   return (
@@ -326,7 +457,7 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
                           className={fieldClass(rowError?.usedQty)}
                         />
                         {rowError?.usedQty && (
-                          <p className="text-[10px] text-destructive mt-1">{rowError.usedQty.message}</p>
+                          <p className="mt-1 text-[10px] text-destructive">{rowError.usedQty.message}</p>
                         )}
                       </td>
                       <td className="px-2.5 py-2">
@@ -336,18 +467,16 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
                           className={fieldClass(rowError?.returnedQty)}
                         />
                         {rowError?.returnedQty && (
-                          <p className="text-[10px] text-destructive mt-1">{rowError.returnedQty.message}</p>
+                          <p className="mt-1 text-[10px] text-destructive">{rowError.returnedQty.message}</p>
                         )}
                       </td>
                       <td className="px-2.5 py-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
+                        <TableActionButton
+                          label="Remove Row"
+                          icon={Trash2}
+                          tone="rose"
                           onClick={() => rawMaterialsArray.remove(idx)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        />
                       </td>
                     </tr>
                   );
@@ -358,28 +487,17 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    rawMaterialsArray.append({
-                      id: `rm-${Date.now()}`,
-                      materialName: '',
-                      requiredQty: 0,
-                      issuedQty: 0,
-                      usedQty: 0,
-                      returnedQty: 0,
-                    })
-                  }
+                  onClick={() => rawMaterialsArray.append(createEmptyRawMaterialRow())}
                 >
-                  <Plus className="h-4 w-4 mr-2" /> Add Row
+                  <Plus className="mr-2 h-4 w-4" /> Add Row
                 </Button>
               </div>
             </FormSection>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="page2" className="space-y-4">
+            <TabsContent value="page2" className="space-y-4">
             <FormSection title="Manufacturing Process Log" description="Record each processing step as per the paper form.">
-              <DataTable
-                headers={['Sr No', 'Process Step', 'Start Time', 'End Time', 'Operator', 'Checked By', 'Remarks', '']}
-              >
+              <DataTable headers={['Sr No', 'Process Step', 'Start Time', 'End Time', 'Operator', 'Checked By', 'Remarks', '']}>
                 {processArray.fields.map((field, idx) => {
                   const rowError = errors.processSteps?.[idx];
                   return (
@@ -424,25 +542,23 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
                         />
                       </td>
                       <td className="px-2.5 py-2">
-                        <Button type="button" variant="ghost" size="sm" onClick={() => processArray.remove(idx)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => processArray.remove(idx)} />
                       </td>
                     </tr>
                   );
                 })}
               </DataTable>
               <div className="flex justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => processArray.append(createProcessRow())}>
-                  <Plus className="h-4 w-4 mr-2" /> Add Step
+                <Button type="button" variant="outline" size="sm" onClick={() => processArray.append(createEmptyProcessRow())}>
+                  <Plus className="mr-2 h-4 w-4" /> Add Step
                 </Button>
               </div>
             </FormSection>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="page3" className="space-y-4">
+            <TabsContent value="page3" className="space-y-4">
             <FormSection title="Sterilization" description="Record sterilization details.">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label>Date *</Label>
                   <Input type="date" {...register('sterilization.date')} className={fieldClass(errors.sterilization?.date)} />
@@ -459,7 +575,7 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
             </FormSection>
 
             <FormSection title="Packing" description="Packing entry as per BMR form.">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label>Packing Type *</Label>
                   <Input {...register('packing.packingType')} className={fieldClass(errors.packing?.packingType)} />
@@ -476,7 +592,7 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
             </FormSection>
 
             <FormSection title="Labelling" description="Label verification details.">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Label Details *</Label>
                   <Input {...register('labelling.labelDetails')} className={fieldClass(errors.labelling?.labelDetails)} />
@@ -487,11 +603,11 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
                 </div>
               </div>
             </FormSection>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="page4" className="space-y-4">
+            <TabsContent value="page4" className="space-y-4">
             <FormSection title="Final Output" description="Yield is auto-calculated.">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div className="space-y-1.5">
                   <Label>Expected Qty *</Label>
                   <Input type="number" {...register('finalOutput.expectedQty', { valueAsNumber: true })} className={fieldClass(errors.finalOutput?.expectedQty)} />
@@ -511,13 +627,14 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
               </div>
             </FormSection>
 
-            <FormSection title="QA Release" description="QA decision is mandatory before submission.">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormSection title="QA Release" description="QA decision is recorded in the BMR and then finalized separately in the QA tab.">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label>QA Status *</Label>
                   <Select
                     value={watch('qa.status')}
                     onValueChange={(value) => setValue('qa.status', value as BmrSchemaValues['qa']['status'], { shouldValidate: true })}
+                    disabled={isReadOnly}
                   >
                     <SelectTrigger className={fieldClass(errors.qa?.status)}>
                       <SelectValue placeholder="Select status" />
@@ -539,19 +656,24 @@ export default function BMRFormPage({ embedded = false, batchId, onStatusChange 
                 </div>
               </div>
             </FormSection>
-          </TabsContent>
+            </TabsContent>
+          </fieldset>
         </Tabs>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border border-border rounded-md p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-4">
           <div className="text-xs text-muted-foreground">
             All sections are required. Yield is calculated from Actual vs Expected quantity.
             {!hasIssue && (
-              <div className="text-destructive mt-1">Record stock issue before submitting BMR.</div>
+              <div className="mt-1 text-destructive">Record stock issue before submitting BMR.</div>
             )}
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={saveDraft}>Save Draft</Button>
-            <Button type="submit" disabled={!isValid || !hasIssue}>Submit BMR</Button>
+            <Button type="button" variant="outline" onClick={() => void saveDraft()} disabled={isReadOnly || savingDraft || submitting}>
+              {savingDraft ? 'Saving...' : 'Save Draft'}
+            </Button>
+            <Button type="submit" disabled={isReadOnly || !isValid || !hasIssue || savingDraft || submitting}>
+              {submitting ? 'Submitting...' : 'Submit BMR'}
+            </Button>
           </div>
         </div>
       </form>

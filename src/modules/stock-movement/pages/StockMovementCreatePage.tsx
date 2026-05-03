@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
 import { Button } from '@/components/ui/button';
@@ -10,15 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useIssueStock } from '@/modules/issues/hooks/useIssueStock';
 import { useMRSList } from '@/modules/mrs/hooks/useMRS';
 import { stockMovementApi } from '../services/stockMovementApi';
-import type { StockMovementRecord, StockMovementType } from '../types';
-import { toast } from 'sonner';
-
-const createMovementNo = () => {
-  const now = new Date();
-  const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
-  const rand = Math.floor(100 + Math.random() * 900);
-  return `MOV-${datePart}-${rand}`;
-};
+import type { StockMovementType } from '../types';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -50,6 +43,11 @@ const emptyRow: MovementRow = {
   remainingQty: undefined,
 };
 
+const getRemainingQty = (row: { remainingQty?: number; qtyRequested?: number; qtyIssued?: number }) =>
+  typeof row.remainingQty === 'number'
+    ? row.remainingQty
+    : Math.max(0, Number(row.qtyRequested || 0) - Number(row.qtyIssued || 0));
+
 export default function StockMovementCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -57,7 +55,6 @@ export default function StockMovementCreatePage() {
   const { items, batchesByItemName } = useIssueStock();
   const { allRecords: mrsRecords } = useMRSList();
 
-  const [movementNo] = useState(createMovementNo);
   const [date, setDate] = useState(today);
   const [type, setType] = useState<StockMovementType>('issue');
   const [selectedMrsId, setSelectedMrsId] = useState(preselectedMrsId);
@@ -67,47 +64,31 @@ export default function StockMovementCreatePage() {
   const [issuedBy, setIssuedBy] = useState('');
   const [sampleDrawnBy, setSampleDrawnBy] = useState('');
   const [saving, setSaving] = useState(false);
-  const [existingIssues, setExistingIssues] = useState<StockMovementRecord[]>([]);
 
   useEffect(() => {
     setSelectedMrsId(preselectedMrsId);
   }, [preselectedMrsId]);
 
+  const selectableMrsRecords = useMemo(
+    () =>
+      mrsRecords.filter(
+        (mrs) =>
+          (mrs.status === 'approved' || mrs.status === 'issued') &&
+          mrs.items.some((item) => getRemainingQty(item) > 0),
+      ),
+    [mrsRecords],
+  );
+
   useEffect(() => {
-    let active = true;
-    const loadIssues = async () => {
-      try {
-        const data = await stockMovementApi.getAll();
-        if (!active) return;
-        setExistingIssues(data.filter((m) => m.type === 'issue'));
-      } catch {
-        if (active) setExistingIssues([]);
-      }
-    };
-    loadIssues();
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (!selectedMrsId) return;
+    if (selectableMrsRecords.some((mrs) => mrs.id === selectedMrsId)) return;
+    setSelectedMrsId('');
+  }, [selectableMrsRecords, selectedMrsId]);
 
   const selectedMrs = useMemo(() => {
     if (!selectedMrsId) return null;
-    return mrsRecords.find((mrs) => mrs.id === selectedMrsId) ?? null;
-  }, [mrsRecords, selectedMrsId]);
-
-  const issuedMap = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!selectedMrsId) return map;
-    existingIssues
-      .filter((m) => m.mrsId === selectedMrsId)
-      .forEach((movement) => {
-        (movement.items || []).forEach((item) => {
-          const key = item.itemId ? `id:${item.itemId}` : `name:${item.itemName}`;
-          map.set(key, (map.get(key) || 0) + (item.quantity || 0));
-        });
-      });
-    return map;
-  }, [existingIssues, selectedMrsId]);
+    return selectableMrsRecords.find((mrs) => mrs.id === selectedMrsId) ?? null;
+  }, [selectableMrsRecords, selectedMrsId]);
 
   useEffect(() => {
     if (type !== 'issue') return;
@@ -115,24 +96,21 @@ export default function StockMovementCreatePage() {
       setRows([{ ...emptyRow }]);
       return;
     }
-    const mapped = selectedMrs.items.map((item) => {
-      const key = item.itemId ? `id:${item.itemId}` : `name:${item.itemName}`;
-      const issuedFromIssues = issuedMap.get(key) || 0;
-      const issuedBase = item.qtyIssued || 0;
-      const issuedQty = Math.max(issuedBase, issuedFromIssues);
-      const remainingQty = Math.max(0, item.qtyRequested - issuedQty);
-      return {
+
+    const mapped = selectedMrs.items
+      .filter((item) => getRemainingQty(item) > 0)
+      .map((item) => ({
         ...emptyRow,
         itemId: item.itemId,
         itemName: item.itemName,
         unit: item.unit,
         requestedQty: item.qtyRequested,
-        issuedQty,
-        remainingQty,
-      };
-    });
+        issuedQty: item.qtyIssued,
+        remainingQty: getRemainingQty(item),
+      }));
+
     setRows(mapped.length ? mapped : [{ ...emptyRow }]);
-  }, [selectedMrs, issuedMap, type]);
+  }, [selectedMrs, type]);
 
   const addRow = () => {
     setRows((prev) => [...prev, { ...emptyRow }]);
@@ -143,44 +121,64 @@ export default function StockMovementCreatePage() {
   };
 
   const handleItem = (index: number, value: string) => {
-    const selected = items.find((i) => i.id === value);
-    const name = selected?.storeName || selected?.tallyName || selected?.sku || '';
+    const selected = items.find((item) => item.id === value);
+    const itemName = selected?.storeName || selected?.tallyName || selected?.sku || '';
     const unit = selected?.baseUnit || '';
-    setRows((prev) => prev.map((r, i) =>
-      i === index
-        ? { ...r, itemId: value, itemName: name, unit, batchNo: '', availableQty: 0, mfgDate: '', expiryDate: '' }
-        : r
-    ));
+
+    setRows((prev) =>
+      prev.map((row, rowIndex) =>
+        rowIndex === index
+          ? {
+              ...row,
+              itemId: value,
+              itemName,
+              unit,
+              batchNo: '',
+              availableQty: 0,
+              mfgDate: '',
+              expiryDate: '',
+            }
+          : row,
+      ),
+    );
   };
 
   const handleBatch = (index: number, value: string) => {
     const itemName = rows[index]?.itemName;
     const list = itemName ? (batchesByItemName.get(itemName) ?? []) : [];
-    const batch = list.find((b) => b.batchNo === value);
-    setRows((prev) => prev.map((r, i) =>
-      i === index
-        ? { ...r, batchNo: value, availableQty: batch?.availableQty ?? 0, mfgDate: batch?.mfgDate ?? '', expiryDate: batch?.expiryDate ?? '' }
-        : r
-    ));
+    const batch = list.find((entry) => entry.batchNo === value);
+
+    setRows((prev) =>
+      prev.map((row, rowIndex) =>
+        rowIndex === index
+          ? {
+              ...row,
+              batchNo: value,
+              availableQty: batch?.availableQty ?? 0,
+              mfgDate: batch?.mfgDate ?? '',
+              expiryDate: batch?.expiryDate ?? '',
+            }
+          : row,
+      ),
+    );
   };
 
   const qtyError = (row: MovementRow) => {
     if (row.qty <= 0) return false;
-    const exceedsAvailable = row.qty > row.availableQty && (type === 'issue' || type === 'sampling' || type === 'transfer');
+    const exceedsAvailable = row.qty > row.availableQty;
     const exceedsRemaining = type === 'issue' && typeof row.remainingQty === 'number' && row.qty > row.remainingQty;
     return exceedsAvailable || exceedsRemaining;
   };
 
   const hasRowErrors = () => rows.some((row) => qtyError(row));
-
-  const validRows = rows.filter((r) => r.qty > 0 && r.itemId && r.batchNo);
+  const validRows = rows.filter((row) => row.qty > 0 && row.itemId && row.batchNo);
 
   const onSubmit = async () => {
     if (validRows.length === 0) {
       toast.error('Please enter at least one valid row with quantity');
       return;
     }
-    if (rows.some((r) => r.qty > 0 && (!r.itemId || !r.batchNo))) {
+    if (rows.some((row) => row.qty > 0 && (!row.itemId || !row.batchNo))) {
       toast.error('Please fill required fields in all rows');
       return;
     }
@@ -188,99 +186,35 @@ export default function StockMovementCreatePage() {
       toast.error('Please fix quantity errors');
       return;
     }
+    if (type === 'issue' && !selectedMrs) {
+      toast.error('Select an approved MRS before issuing materials');
+      return;
+    }
+    if ((type === 'sampling' || type === 'transfer') && (!fromLocation || !toLocation)) {
+      toast.error('From and To locations are required');
+      return;
+    }
+
     setSaving(true);
     try {
-      for (const row of validRows) {
-        if (type === 'issue') {
-          await stockMovementApi.createIssue({
-            movementNo,
-            date,
-            itemId: row.itemId,
-            itemName: row.itemName,
-            batchNo: row.batchNo,
-            availableQty: row.availableQty,
-            qty: row.qty,
-            mfgDate: row.mfgDate,
-            expiryDate: row.expiryDate,
-            issuedBy: issuedBy || 'Store Admin',
-            mrsId: selectedMrs?.id,
-            requestedQty: row.requestedQty,
-          });
-        }
-        if (type === 'sampling') {
-          await stockMovementApi.createSampling({
-            movementNo,
-            date,
-            fromLocation: fromLocation || 'Main Store',
-            toLocation: toLocation || 'QC',
-            itemId: row.itemId,
-            itemName: row.itemName,
-            batchNo: row.batchNo,
-            availableQty: row.availableQty,
-            qty: row.qty,
-            mfgDate: row.mfgDate,
-            expiryDate: row.expiryDate,
-            issuedBy: issuedBy || 'QC Lead',
-            sampleDrawnBy: sampleDrawnBy || 'QC Analyst',
-          });
-        }
-        if (type === 'transfer') {
-          await stockMovementApi.createTransfer({
-            movementNo,
-            date,
-            fromLocation: fromLocation || 'Main Store',
-            toLocation: toLocation || 'Warehouse B',
-            itemName: row.itemName,
-            batchNo: row.batchNo,
-            qty: row.qty,
-          });
-        }
-      }
-
-      const mrsMeta = type === 'issue' ? selectedMrs : null;
-      await stockMovementApi.create({
-        id: '',
-        movementNo,
-        date,
+      const created = await stockMovementApi.create({
         type,
-        mrsId: mrsMeta?.id,
-        mrsNo: mrsMeta?.mrsNo,
-        productionBatchId: mrsMeta?.productionBatchId,
-        productionBatchNo: mrsMeta?.productionBatchNo,
-        productionNo: mrsMeta?.productionNo,
-        itemName: validRows[0]?.itemName || '',
-        batchNo: validRows[0]?.batchNo || '',
-        quantity: validRows.reduce((s, r) => s + (r.qty || 0), 0),
-        availableQty: validRows[0]?.availableQty || 0,
-        items: validRows.map((r) => {
-          const issuedAfter = (r.issuedQty || 0) + r.qty;
-          const remainingAfter = typeof r.remainingQty === 'number' ? Math.max(0, r.remainingQty - r.qty) : undefined;
-          return {
-            itemId: r.itemId,
-            itemName: r.itemName,
-            batchNo: r.batchNo,
-            quantity: r.qty,
-            availableQty: r.availableQty,
-            mfgDate: r.mfgDate,
-            expiryDate: r.expiryDate,
-            unit: r.unit,
-            requestedQty: r.requestedQty,
-            issuedQty: issuedAfter,
-            remainingQty: remainingAfter,
-          };
-        }),
-        fromLocation: fromLocation || undefined,
-        toLocation: toLocation || undefined,
-        currentLocation: type === 'transfer' ? (toLocation || 'Warehouse B') : undefined,
-        locationHistory: type === 'transfer' ? [{ date, from: fromLocation || 'Main Store', to: toLocation || 'Warehouse B' }] : undefined,
-        mfgDate: validRows[0]?.mfgDate || '',
-        expiryDate: validRows[0]?.expiryDate || '',
+        date,
+        productionBatchId: type === 'issue' ? selectedMrs?.productionBatchId : undefined,
+        materialRequisitionId: type === 'issue' ? selectedMrs?.id : undefined,
+        fromLocation: type === 'issue' ? undefined : fromLocation,
+        toLocation: type === 'issue' ? undefined : toLocation,
         issuedBy: issuedBy || undefined,
-        sampleDrawnBy: sampleDrawnBy || undefined,
+        sampleDrawnBy: type === 'sampling' ? (sampleDrawnBy || undefined) : undefined,
+        items: validRows.map((row) => ({
+          itemId: row.itemId,
+          batchNo: row.batchNo,
+          quantity: row.qty,
+        })),
       });
 
       toast.success('Stock movement saved');
-      navigate('/stock-movement');
+      navigate(`/stock-movement/${created.id}`);
     } catch {
       toast.error('Failed to save movement');
     } finally {
@@ -301,24 +235,31 @@ export default function StockMovementCreatePage() {
         ]}
         action={(
           <Button variant="outline" className="rounded-xl" onClick={() => navigate('/stock-movement')}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
         )}
       />
 
       <FormSection title="Header" description="Define movement meta, type, and optional MRS reference.">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
             <Label>Movement No</Label>
-            <Input readOnly value={movementNo} />
+            <Input readOnly value="Auto-generated on save" />
           </div>
           <div className="space-y-1.5">
             <Label>Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Movement Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as StockMovementType)}>
+            <Select
+              value={type}
+              onValueChange={(value) => {
+                setType(value as StockMovementType);
+                setSelectedMrsId('');
+                setRows([{ ...emptyRow }]);
+              }}
+            >
               <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="issue">Issue</SelectItem>
@@ -330,18 +271,24 @@ export default function StockMovementCreatePage() {
           {type === 'issue' && (
             <div className="space-y-1.5">
               <Label>Reference MRS</Label>
-              <Select value={selectedMrsId || 'none'} onValueChange={(v) => setSelectedMrsId(v === 'none' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Select MRS" /></SelectTrigger>
+              <Select value={selectedMrsId} onValueChange={setSelectedMrsId}>
+                <SelectTrigger><SelectValue placeholder="Select open MRS" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Reference</SelectItem>
-                  {mrsRecords.map((mrs) => (
-                    <SelectItem key={mrs.id} value={mrs.id}>{mrs.mrsNo} ({mrs.productionBatchNo})</SelectItem>
+                  {selectableMrsRecords.map((mrs) => (
+                    <SelectItem key={mrs.id} value={mrs.id}>
+                      {mrs.mrsNo} ({mrs.productionBatchNo})
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {selectedMrs && (
                 <p className="text-xs text-muted-foreground">
                   Batch: {selectedMrs.productionBatchNo} | Dept: {selectedMrs.department}
+                </p>
+              )}
+              {!selectedMrs && selectableMrsRecords.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No approved MRS with pending issue quantity are available.
                 </p>
               )}
             </div>
@@ -351,14 +298,14 @@ export default function StockMovementCreatePage() {
 
       {(type === 'transfer' || type === 'sampling') && (
         <FormSection title="Locations" description="Source and destination mapping for transfer or sampling.">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>From Location</Label>
-              <Input value={fromLocation} onChange={(e) => setFromLocation(e.target.value)} placeholder={type === 'sampling' ? 'Store' : 'From location'} />
+              <Input value={fromLocation} onChange={(event) => setFromLocation(event.target.value)} placeholder={type === 'sampling' ? 'Store' : 'From location'} />
             </div>
             <div className="space-y-1.5">
               <Label>To Location</Label>
-              <Input value={toLocation} onChange={(e) => setToLocation(e.target.value)} placeholder={type === 'sampling' ? 'QC' : 'To location'} />
+              <Input value={toLocation} onChange={(event) => setToLocation(event.target.value)} placeholder={type === 'sampling' ? 'QC' : 'To location'} />
             </div>
           </div>
         </FormSection>
@@ -367,7 +314,7 @@ export default function StockMovementCreatePage() {
       <FormSection
         title={type === 'issue' ? 'Issue Details' : type === 'sampling' ? 'Sampling Details' : 'Transfer Details'}
         description="Capture item, batch, and quantity lines for this movement."
-        actions={(!issueWithMrs || type !== 'issue') ? (
+        actions={!issueWithMrs ? (
           <Button type="button" variant="outline" size="sm" onClick={addRow}>
             Add Row
           </Button>
@@ -376,54 +323,67 @@ export default function StockMovementCreatePage() {
         <div className="space-y-4">
           {rows.map((row, index) => {
             const rowBatches = row.itemName ? (batchesByItemName.get(row.itemName) ?? []) : [];
-            const availableBatches = rowBatches.filter((b) => b.availableQty > 0);
+            const availableBatches = rowBatches.filter((batch) => batch.availableQty > 0);
             const remaining = typeof row.remainingQty === 'number' ? row.remainingQty : undefined;
+
             return (
-              <div key={`${row.itemId}-${index}`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border rounded-xl p-4">
+              <div
+                key={`${row.itemId || 'row'}-${index}`}
+                className={`grid grid-cols-1 gap-4 rounded-xl border p-4 sm:grid-cols-2 ${
+                  issueWithMrs ? 'lg:grid-cols-5' : 'lg:grid-cols-4'
+                }`}
+              >
                 <div className="space-y-1.5">
                   <Label>Item</Label>
-                  <Select value={row.itemId} onValueChange={(v) => handleItem(index, v)} disabled={issueWithMrs}>
+                  <Select value={row.itemId} onValueChange={(value) => handleItem(index, value)} disabled={issueWithMrs}>
                     <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
                     <SelectContent>
-                      {items.map((it) => (
-                        <SelectItem key={it.id} value={it.id}>
-                          {it.storeName || it.tallyName || it.sku}
+                      {items.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.storeName || item.tallyName || item.sku}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {issueWithMrs && (
-                    <p className="text-xs text-muted-foreground">Requested: {row.requestedQty || 0}</p>
-                  )}
                 </div>
+
                 <div className="space-y-1.5">
                   <Label>Batch No</Label>
-                  <Select value={row.batchNo} onValueChange={(v) => handleBatch(index, v)} disabled={!row.itemName}>
+                  <Select value={row.batchNo} onValueChange={(value) => handleBatch(index, value)} disabled={!row.itemName}>
                     <SelectTrigger><SelectValue placeholder={row.itemName ? 'Select batch' : 'Select item first'} /></SelectTrigger>
                     <SelectContent>
-                      {availableBatches.map((b) => (
-                        <SelectItem key={b.batchNo} value={b.batchNo}>
-                          {b.batchNo} (Avail: {b.availableQty})
+                      {availableBatches.map((batch) => (
+                        <SelectItem key={batch.batchNo} value={batch.batchNo}>
+                          {batch.batchNo} (Avail: {batch.availableQty})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {issueWithMrs && (
+                  <div className="space-y-1.5">
+                    <Label>Requested Qty</Label>
+                    <Input readOnly value={row.requestedQty ?? 0} className="bg-muted/50" />
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <Label>Available Qty</Label>
                   <Input readOnly value={row.availableQty} className="bg-muted/50" />
                 </div>
+
                 <div className="space-y-1.5">
                   <Label>{type === 'issue' ? 'Issue Qty' : type === 'sampling' ? 'Sample Qty' : 'Transfer Qty'}</Label>
                   <Input
                     type="number"
                     value={row.qty || ''}
-                    onChange={(e) => setRows((prev) => prev.map((r, i) => i === index ? { ...r, qty: Number(e.target.value) } : r))}
+                    onChange={(event) =>
+                      setRows((prev) => prev.map((entry, rowIndex) => (rowIndex === index ? { ...entry, qty: Number(event.target.value) } : entry)))
+                    }
                     disabled={remaining === 0}
                   />
-                  {remaining !== undefined && (
-                    <p className="text-xs text-muted-foreground">Remaining: {remaining}</p>
-                  )}
+                  {remaining !== undefined && <p className="text-xs text-muted-foreground">Remaining: {remaining}</p>}
                   {qtyError(row) && (
                     <p className="text-xs text-destructive">
                       {type === 'issue' && remaining !== undefined && row.qty > remaining
@@ -432,14 +392,17 @@ export default function StockMovementCreatePage() {
                     </p>
                   )}
                 </div>
+
                 <div className="space-y-1.5">
                   <Label>MFG Date</Label>
                   <Input readOnly value={row.mfgDate} className="bg-muted/50" />
                 </div>
+
                 <div className="space-y-1.5">
                   <Label>Expiry Date</Label>
                   <Input readOnly value={row.expiryDate} className="bg-muted/50" />
                 </div>
+
                 {rows.length > 1 && !issueWithMrs && (
                   <div className="flex items-end">
                     <Button type="button" variant="ghost" onClick={() => removeRow(index)}>Remove</Button>
@@ -453,15 +416,15 @@ export default function StockMovementCreatePage() {
 
       {(type === 'issue' || type === 'sampling') && (
         <FormSection title="Signatories" description="Record responsible personnel for audit traceability.">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label>Issued By</Label>
-              <Input value={issuedBy} onChange={(e) => setIssuedBy(e.target.value)} placeholder="Name" />
+              <Input value={issuedBy} onChange={(event) => setIssuedBy(event.target.value)} placeholder="Name" />
             </div>
             {type === 'sampling' && (
               <div className="space-y-1.5">
                 <Label>Sample Drawn By</Label>
-                <Input value={sampleDrawnBy} onChange={(e) => setSampleDrawnBy(e.target.value)} placeholder="Name" />
+                <Input value={sampleDrawnBy} onChange={(event) => setSampleDrawnBy(event.target.value)} placeholder="Name" />
               </div>
             )}
           </div>

@@ -6,6 +6,7 @@ import { Plus, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
+import TableActionButton from '@/components/TableActionButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -341,9 +342,7 @@ export default function IssueCreatePage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {fields.length > 1 && (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
+                          <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => remove(idx)} />
                         )}
                       </TableCell>
                     </TableRow>

@@ -1,33 +1,22 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useEffect, useMemo, useState } from 'react';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import TableActionButton from '@/components/TableActionButton';
+import FormSection from '@/components/FormSection';
+import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
-import PageHeader from '@/components/PageHeader';
-import FormSection from '@/components/FormSection';
+import { itemsApi } from '@/modules/items/services/itemsApi';
+import type { ItemRecord } from '@/modules/items/types';
+import { partiesApi } from '@/modules/parties/services/partiesApi';
+import type { PartyRecord } from '@/modules/parties/types';
 import { ginSchema, type GINFormValues } from '../schemas/purchaseSchema';
 import { purchasesApi } from '../services/purchasesApi';
-
-const vendors = [
-  { id: '1', name: 'ABC Steel Suppliers' },
-  { id: '2', name: 'PQR Trading Co.' },
-  { id: '3', name: 'Shree Chemicals Ltd.' },
-  { id: '4', name: 'Vendor A' },
-];
-
-const availableItems = [
-  { id: 'rm-1', name: 'Cotton' },
-  { id: 'rm-2', name: 'Chemical' },
-  { id: '1', name: 'Steel Rod 10mm' },
-  { id: '2', name: 'Copper Wire 2mm' },
-  { id: '3', name: 'Packing Box Large' },
-  { id: '4', name: 'Chemical Solvent A' },
-];
 
 const emptyRow = {
   itemId: '',
@@ -46,7 +35,24 @@ const emptyRow = {
 export default function GoodsInwardPage() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [vendors, setVendors] = useState<PartyRecord[]>([]);
+  const [availableItems, setAvailableItems] = useState<ItemRecord[]>([]);
   const today = new Date().toISOString().split('T')[0];
+
+  const defaultValues = useMemo<GINFormValues>(() => ({
+    vendorId: '',
+    challanNo: '',
+    challanDate: today,
+    billNo: '',
+    billDate: today,
+    gateEntryNo: '',
+    entryDate: today,
+    items: [{ ...emptyRow }],
+    preparedBy: '',
+    sanctionedBy: '',
+    authorizedSignatory: '',
+  }), [today]);
 
   const {
     register,
@@ -58,20 +64,34 @@ export default function GoodsInwardPage() {
     formState: { errors },
   } = useForm<GINFormValues>({
     resolver: zodResolver(ginSchema),
-    defaultValues: {
-      vendorId: '',
-      challanNo: '',
-      challanDate: today,
-      billNo: '',
-      billDate: today,
-      gateEntryNo: '',
-      entryDate: today,
-      items: [{ ...emptyRow }],
-      preparedBy: '',
-      sanctionedBy: '',
-      authorizedSignatory: '',
-    },
+    defaultValues,
   });
+
+  useEffect(() => {
+    let active = true;
+    const loadOptions = async () => {
+      try {
+        const [parties, items] = await Promise.all([
+          partiesApi.getAll({ paginate: false, status: 'active' }),
+          itemsApi.getAll({ paginate: false, status: 'active', itemType: 'raw' }),
+        ]);
+        if (!active) return;
+        setVendors(parties.filter((party) => party.partyType === 'vendor' || party.partyType === 'both'));
+        setAvailableItems(items.filter((item) => item.itemType === 'raw'));
+      } catch {
+        if (!active) return;
+        setVendors([]);
+        setAvailableItems([]);
+        toast.error('Failed to load vendor and item options');
+      } finally {
+        if (active) setLoadingOptions(false);
+      }
+    };
+    void loadOptions();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
@@ -84,16 +104,18 @@ export default function GoodsInwardPage() {
   const grandTotal = watchedItems?.reduce((sum, row) => sum + row.acceptedQty * row.rate, 0) ?? 0;
 
   const handleReceivedChange = (idx: number, value: number) => {
-    setValue(`items.${idx}.receivedQty`, value);
-    setValue(`items.${idx}.acceptedQty`, value);
-    setValue(`items.${idx}.rejectedQty`, 0);
+    const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+    setValue(`items.${idx}.receivedQty`, safeValue, { shouldDirty: true, shouldValidate: true });
+    setValue(`items.${idx}.acceptedQty`, safeValue, { shouldDirty: true, shouldValidate: true });
+    setValue(`items.${idx}.rejectedQty`, 0, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleAcceptedChange = (idx: number, value: number) => {
     const received = watchedItems[idx]?.receivedQty ?? 0;
-    const accepted = Math.min(value, received);
-    setValue(`items.${idx}.acceptedQty`, accepted);
-    setValue(`items.${idx}.rejectedQty`, received - accepted);
+    const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
+    const accepted = Math.min(safeValue, received);
+    setValue(`items.${idx}.acceptedQty`, accepted, { shouldDirty: true, shouldValidate: true });
+    setValue(`items.${idx}.rejectedQty`, received - accepted, { shouldDirty: true, shouldValidate: true });
   };
 
   const onSubmit = async (data: GINFormValues) => {
@@ -101,7 +123,7 @@ export default function GoodsInwardPage() {
     try {
       await purchasesApi.create(data);
       toast.success('Goods inward note saved successfully');
-      reset();
+      reset(defaultValues);
       navigate('/purchases');
     } catch {
       toast.error('Failed to save. Please try again.');
@@ -134,12 +156,20 @@ export default function GoodsInwardPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
               <Label>Vendor Name *</Label>
-              <Select value={watch('vendorId')} onValueChange={(v) => setValue('vendorId', v, { shouldValidate: true })}>
+              <Select
+                value={watch('vendorId')}
+                onValueChange={(value) => setValue('vendorId', value, { shouldDirty: true, shouldValidate: true })}
+                disabled={loadingOptions}
+              >
                 <SelectTrigger className={fieldClass(errors.vendorId)}>
-                  <SelectValue placeholder="Select vendor" />
+                  <SelectValue placeholder={loadingOptions ? 'Loading vendors...' : 'Select vendor'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {vendors.map((vendor) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>)}
+                  {vendors.map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.vendorId ? <p className="text-xs text-destructive">{errors.vendorId.message}</p> : null}
@@ -179,7 +209,7 @@ export default function GoodsInwardPage() {
           description="Only accepted quantity contributes to stock."
           actions={(
             <Button type="button" variant="outline" size="sm" onClick={() => append({ ...emptyRow })}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Add Row
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add Row
             </Button>
           )}
         >
@@ -187,8 +217,10 @@ export default function GoodsInwardPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  {['Item *', 'ULP Qty', 'Bill Qty', 'Received', 'Accepted', 'Rejected', 'Batch *', 'MFG Date *', 'Expiry *', 'Rate (Rs)', 'Value', 'Remarks', ''].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-2.5 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
+                  {['Item *', 'ULP Qty', 'Bill Qty', 'Received', 'Accepted', 'Rejected', 'Batch *', 'MFG Date *', 'Expiry *', 'Rate (Rs)', 'Value', 'Remarks', ''].map((header) => (
+                    <th key={header} className="whitespace-nowrap px-2.5 py-2.5 text-left text-xs font-medium text-muted-foreground">
+                      {header}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -198,9 +230,21 @@ export default function GoodsInwardPage() {
                   return (
                     <tr key={field.id} className="border-b border-border align-top last:border-0">
                       <td className="px-2.5 py-2">
-                        <Select value={watchedItems[idx]?.itemId ?? ''} onValueChange={(v) => setValue(`items.${idx}.itemId`, v, { shouldValidate: true })}>
-                          <SelectTrigger className={`w-44 ${fieldClass(rowErrors?.itemId)}`}><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>{availableItems.map((it) => <SelectItem key={it.id} value={it.id}>{it.name}</SelectItem>)}</SelectContent>
+                        <Select
+                          value={watchedItems[idx]?.itemId ?? ''}
+                          onValueChange={(value) => setValue(`items.${idx}.itemId`, value, { shouldDirty: true, shouldValidate: true })}
+                          disabled={loadingOptions}
+                        >
+                          <SelectTrigger className={`w-44 ${fieldClass(rowErrors?.itemId)}`}>
+                            <SelectValue placeholder={loadingOptions ? 'Loading items...' : 'Select'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.storeName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
                         </Select>
                       </td>
                       <td className="px-2.5 py-2"><Input type="number" className="w-[72px]" {...register(`items.${idx}.ulpQty`, { valueAsNumber: true })} /></td>
@@ -210,7 +254,7 @@ export default function GoodsInwardPage() {
                           type="number"
                           className={`w-[72px] ${fieldClass(rowErrors?.receivedQty)}`}
                           {...register(`items.${idx}.receivedQty`, { valueAsNumber: true })}
-                          onChange={(e) => handleReceivedChange(idx, Number(e.target.value))}
+                          onChange={(event) => handleReceivedChange(idx, Number(event.target.value))}
                         />
                       </td>
                       <td className="px-2.5 py-2">
@@ -218,7 +262,7 @@ export default function GoodsInwardPage() {
                           type="number"
                           className={`w-[72px] ${fieldClass(rowErrors?.acceptedQty)}`}
                           value={watchedItems[idx]?.acceptedQty ?? 0}
-                          onChange={(e) => handleAcceptedChange(idx, Number(e.target.value))}
+                          onChange={(event) => handleAcceptedChange(idx, Number(event.target.value))}
                         />
                       </td>
                       <td className="px-2.5 py-2"><Input type="number" className="w-[72px] bg-muted/50" value={watchedItems[idx]?.rejectedQty ?? 0} readOnly tabIndex={-1} /></td>
@@ -230,9 +274,7 @@ export default function GoodsInwardPage() {
                       <td className="px-2.5 py-2"><Input className="w-24" placeholder="-" {...register(`items.${idx}.remarks`)} /></td>
                       <td className="px-2.5 py-2 pt-3">
                         {fields.length > 1 ? (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
+                          <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => remove(idx)} />
                         ) : null}
                       </td>
                     </tr>
@@ -267,7 +309,7 @@ export default function GoodsInwardPage() {
             </div>
             <div className="flex items-center gap-3">
               <Button type="button" variant="outline" onClick={() => navigate('/purchases')}>Cancel</Button>
-              <Button type="submit" className="rounded-xl" disabled={submitting}>
+              <Button type="submit" className="rounded-xl" disabled={submitting || loadingOptions}>
                 {submitting ? 'Saving...' : 'Save GIN'}
               </Button>
             </div>

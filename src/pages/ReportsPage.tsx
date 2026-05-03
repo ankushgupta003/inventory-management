@@ -44,6 +44,7 @@ export default function ReportsPage() {
   const [filters, setFilters] = useState<ReportFilters>(makeDefaultFilters());
   const [dataset, setDataset] = useState<ReportDataset | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -52,9 +53,11 @@ export default function ReportsPage() {
         const data = await fetchReportDataset();
         if (!active) return;
         setDataset(data);
+        setError('');
       } catch {
         if (!active) return;
         setDataset(null);
+        setError('Unable to load live reporting data right now.');
       } finally {
         if (active) setLoading(false);
       }
@@ -85,6 +88,56 @@ export default function ReportsPage() {
     rows.forEach((row) => map.set(row.status, (map.get(row.status) || 0) + 1));
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
   }, [reportView]);
+
+  const qualityFlowTrend = useMemo(() => {
+    const map = new Map<string, { qa: number; mrs: number }>();
+
+    (reportView?.qaRows || []).forEach((row) => {
+      const current = map.get(row.date) || { qa: 0, mrs: 0 };
+      current.qa += 1;
+      map.set(row.date, current);
+    });
+
+    (reportView?.openMrsRows || []).forEach((row) => {
+      const current = map.get(row.date) || { qa: 0, mrs: 0 };
+      current.mrs += 1;
+      map.set(row.date, current);
+    });
+
+    return Array.from(map.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, counts]) => ({
+        date,
+        label: date.slice(5),
+        qa: counts.qa,
+        mrs: counts.mrs,
+      }))
+      .slice(-10);
+  }, [reportView]);
+
+  const salesTrend = useMemo(() => {
+    const map = new Map<string, { amount: number }>();
+
+    (reportView?.invoiceRows || []).forEach((row) => {
+      const current = map.get(row.date) || { amount: 0 };
+      current.amount += row.totalAmount || 0;
+      map.set(row.date, current);
+    });
+
+    return Array.from(map.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, metrics]) => ({
+        date,
+        label: date.slice(5),
+        amount: metrics.amount,
+      }))
+      .slice(-10);
+  }, [reportView]);
+
+  const stockHighlights = useMemo(
+    () => [...(reportView?.stockRows || [])].sort((left, right) => right.qty - left.qty).slice(0, 5),
+    [reportView]
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -199,7 +252,7 @@ export default function ReportsPage() {
                 </ChartContainer>
               </div>
               <div className="space-y-2">
-                {(reportView?.stockRows || []).slice(0, 5).map((row) => (
+                {stockHighlights.map((row) => (
                   <div key={row.key} className="rounded-xl border border-border/70 px-3 py-2">
                     <p className="text-sm font-semibold">{row.itemName}</p>
                     <p className="text-xs text-muted-foreground">{row.batchNo}</p>
@@ -216,7 +269,7 @@ export default function ReportsPage() {
             <KpiRow label="Open MRS" value={(reportView?.openMrsRows.length || 0).toLocaleString('en-IN')} />
             <KpiRow label="QA Requests" value={(reportView?.qaRows.length || 0).toLocaleString('en-IN')} />
             <KpiRow label="Blocked Batches" value={(snapshot?.kpis.blockedBatchCount || 0).toLocaleString('en-IN')} />
-            <KpiRow label="Production Batches" value={(dataset?.productionBatches.length || 0).toLocaleString('en-IN')} />
+            <KpiRow label="Production Batches" value={((snapshot?.funnel.find((row) => row.stage === 'production')?.count) || 0).toLocaleString('en-IN')} />
           </div>
           <PanelCard bodyClassName="space-y-4">
             <ChartPanelHeader title="Batch and QA Flow" />
@@ -227,7 +280,7 @@ export default function ReportsPage() {
               }}
               className="h-56"
             >
-              <LineChart data={(snapshot?.throughputTrend || []).map((p) => ({ label: p.day, qa: reportView?.qaRows.length || 0, mrs: reportView?.openMrsRows.length || 0 }))}>
+              <LineChart data={qualityFlowTrend}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} width={34} />
@@ -265,9 +318,9 @@ export default function ReportsPage() {
             <PanelCard className="xl:col-span-2" bodyClassName="space-y-4">
               <ChartPanelHeader title="Sales Fulfillment Trend" controls={<Button variant="outline" size="sm" onClick={() => exportCsv('sales-fulfillment.csv', [['PI No', 'Customer', 'Status'], ...(reportView?.piRows || []).map((row) => [row.piNo, row.customerName, row.status])])}><Download className="mr-1 h-3.5 w-3.5" />Export CSV</Button>} />
               <ChartContainer config={{ amount: { label: 'Amount', color: 'hsl(var(--kpi-green))' } }} className="h-56">
-                <BarChart data={(reportView?.invoiceRows || []).map((row) => ({ label: row.invoiceNo, amount: row.totalAmount }))}>
+                <BarChart data={salesTrend}>
                   <CartesianGrid vertical={false} />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} hide />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} width={36} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar dataKey="amount" fill="var(--color-amount)" radius={[8, 8, 0, 0]} />
@@ -342,7 +395,12 @@ export default function ReportsPage() {
           <div className="py-6 text-center text-sm text-muted-foreground">Loading report datasets...</div>
         </PanelCard>
       )}
+
+      {!loading && error && (
+        <PanelCard>
+          <div className="py-4 text-center text-sm text-destructive">{error}</div>
+        </PanelCard>
+      )}
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -72,9 +73,9 @@ export default function ItemMasterPage() {
         actions={(row) => {
           
           return (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Edit2 className="h-3.5 w-3.5" /></Button>
-              <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+            <div className="flex items-center justify-end gap-1">
+              <TableActionButton label="Edit" icon={Edit2} tone="amber" onClick={() => openEdit(row)} />
+              <TableActionButton label="Delete" icon={Trash2} tone="rose" onClick={() => setDeleteId(row.id)} />
             </div>
           );
         }}

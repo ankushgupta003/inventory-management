@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -64,7 +65,7 @@ export default function ProductionPage() {
                   </Select>
                 </td>
                 <td className="px-3 py-2"><Input type="number" className="w-28" value={row.quantity || ''} onChange={(e) => updateList(setRows, rows, i, 'quantity', Number(e.target.value))} /></td>
-                <td className="px-3 py-2">{rows.length > 1 && <Button variant="ghost" size="sm" onClick={() => setRows(rows.filter((_, idx) => idx !== i))}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>}</td>
+                <td className="px-3 py-2">{rows.length > 1 && <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => setRows(rows.filter((_, idx) => idx !== i))} />}</td>
               </tr>
             ))}
           </tbody>

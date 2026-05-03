@@ -48,6 +48,41 @@ const inScope = (
   });
 };
 
+const matchesValue = (filterValue: string, recordValue: string | undefined) => {
+  if (!filterValue || filterValue === 'all') return true;
+  return (recordValue || '').toLowerCase() === filterValue.toLowerCase();
+};
+
+const matchesAnyValue = (filterValue: string, recordValues: Array<string | undefined>) => {
+  if (!filterValue || filterValue === 'all') return true;
+  return recordValues.some((value) => (value || '').toLowerCase() === filterValue.toLowerCase());
+};
+
+const matchesProductionBatchFilters = (batch: ReportDataset['productionBatches'][number], filters: ReportFilters) =>
+  inScope(batch.startDate, filters, [
+    { key: 'itemName', value: batch.productName },
+    { key: 'batchNo', value: batch.batchNo },
+    { key: 'status', value: batch.status },
+  ]);
+
+const matchesProformaInvoiceFilters = (row: ReportDataset['proformaInvoices'][number], filters: ReportFilters) => {
+  if (!isWithinDateBounds(row.date, filters)) return false;
+  if (!matchesValue(filters.partyName, row.customerName)) return false;
+  if (!matchesValue(filters.status, row.status)) return false;
+  if (!matchesAnyValue(filters.itemName, row.items.map((item) => item.itemName))) return false;
+  if (filters.batchNo !== 'all') return false;
+  return true;
+};
+
+const matchesInvoiceFilters = (row: ReportDataset['invoices'][number], filters: ReportFilters) => {
+  if (!isWithinDateBounds(row.date, filters)) return false;
+  if (!matchesValue(filters.partyName, row.customerName)) return false;
+  if (!matchesValue(filters.status, row.status)) return false;
+  if (!matchesAnyValue(filters.itemName, row.items.map((item) => item.itemName))) return false;
+  if (!matchesAnyValue(filters.batchNo, row.items.map((item) => item.batchNo))) return false;
+  return true;
+};
+
 export const getFilterOptions = (dataset: ReportDataset) => {
   const itemSet = new Set<string>();
   const batchSet = new Set<string>();
@@ -86,7 +121,11 @@ export const getFilterOptions = (dataset: ReportDataset) => {
     if (row.status) statusSet.add(row.status);
     if (row.requestedBy) partySet.add(row.requestedBy);
   });
-  dataset.productionBatches.forEach((row) => statusSet.add(row.status));
+  dataset.productionBatches.forEach((row) => {
+    statusSet.add(row.status);
+    if (row.productName) itemSet.add(row.productName);
+    if (row.batchNo) batchSet.add(row.batchNo);
+  });
   dataset.mrsRecords.forEach((row) => {
     if (row.status) statusSet.add(row.status);
     if (row.itemName) itemSet.add(row.itemName);
@@ -112,10 +151,17 @@ const buildThroughputTrend = (dataset: ReportDataset, filters: ReportFilters) =>
   while (current <= end) {
     const day = current.toISOString().slice(0, 10);
     const movementQty = dataset.stockMovements
-      .filter((row) => row.date === day)
+      .filter((row) =>
+        row.date === day &&
+        inScope(row.date, filters, [
+          { key: 'itemName', value: row.itemName },
+          { key: 'batchNo', value: row.batchNo },
+          { key: 'status', value: row.type },
+        ])
+      )
       .reduce((sum, row) => sum + Number(row.quantity || 0), 0);
     const invoiceQty = dataset.invoices
-      .filter((row) => row.date === day)
+      .filter((row) => row.date === day && matchesInvoiceFilters(row, filters))
       .reduce((sum, row) => sum + Number(row.totalQuantity || 0), 0);
     points.push({ day: day.slice(5), movementQty, invoiceQty });
     current.setDate(current.getDate() + 1);
@@ -153,6 +199,7 @@ const buildAlerts = (dataset: ReportDataset, filters: ReportFilters): DashboardA
   dataset.productionBatches
     .filter((batch) => batch.status === 'BLOCKED')
     .forEach((batch) => {
+      if (!matchesProductionBatchFilters(batch, filters)) return;
       alerts.push({
         id: `qa-${batch.id}`,
         severity: 'critical',
@@ -227,10 +274,7 @@ const buildCriticalActivities = (dataset: ReportDataset, filters: ReportFilters)
   });
 
   dataset.invoices.forEach((row) => {
-    if (!inScope(row.date, filters, [
-      { key: 'partyName', value: row.customerName },
-      { key: 'status', value: row.status },
-    ])) return;
+    if (!matchesInvoiceFilters(row, filters)) return;
     activities.push({
       id: `inv-${row.id}`,
       date: row.date,
@@ -243,10 +287,7 @@ const buildCriticalActivities = (dataset: ReportDataset, filters: ReportFilters)
   });
 
   dataset.proformaInvoices.forEach((row) => {
-    if (!inScope(row.date, filters, [
-      { key: 'partyName', value: row.customerName },
-      { key: 'status', value: row.status },
-    ])) return;
+    if (!matchesProformaInvoiceFilters(row, filters)) return;
     activities.push({
       id: `pi-${row.id}`,
       date: row.date,
@@ -298,28 +339,28 @@ const buildFunnel = (dataset: ReportDataset, filters: ReportFilters): WorkflowSt
   );
 
   const pi = dataset.proformaInvoices.filter((row) =>
-    inScope(row.date, filters, [
-      { key: 'partyName', value: row.customerName },
-      { key: 'status', value: row.status },
-    ])
+    matchesProformaInvoiceFilters(row, filters)
   );
 
   const invoices = dataset.invoices.filter((row) =>
-    inScope(row.date, filters, [
-      { key: 'partyName', value: row.customerName },
-      { key: 'status', value: row.status },
-    ])
+    matchesInvoiceFilters(row, filters)
   );
 
   return [
     { stage: 'purchase', label: 'Purchase', count: purchases.length },
     { stage: 'mrs', label: 'MRS', count: mrs.length },
     { stage: 'stock-movement', label: 'Stock Movement', count: movements.length },
-    { stage: 'production', label: 'Production', count: dataset.productionBatches.length },
+    { stage: 'production', label: 'Production', count: dataset.productionBatches.filter((batch) => matchesProductionBatchFilters(batch, filters)).length },
     { stage: 'qa', label: 'QA', count: qa.length },
     { stage: 'pi', label: 'PI', count: pi.length },
     { stage: 'invoice', label: 'Invoice', count: invoices.length },
   ];
+};
+
+const isOpenPiStatus = (status: string) => status === 'pending' || status === 'partial';
+const isOpenMrsStatus = (status: string) => {
+  const normalized = status.toLowerCase();
+  return normalized !== 'issued' && normalized !== 'closed';
 };
 
 export const buildDashboardSnapshot = (dataset: ReportDataset, filters: ReportFilters): DashboardSnapshot => {
@@ -329,12 +370,27 @@ export const buildDashboardSnapshot = (dataset: ReportDataset, filters: ReportFi
     return true;
   });
 
-  const openMrs = dataset.mrsRecords.filter((row) => row.status !== 'CLOSED');
-  const qaPending = dataset.productionBatches.filter((batch) => batch.status === 'QA_PENDING').length
-    + dataset.qualityRequests.filter((row) => row.status === 'pending' || row.status === 'approved' || row.status === 'under_testing').length;
-  const blockedBatches = dataset.productionBatches.filter((batch) => batch.status === 'BLOCKED').length;
+  const openMrs = dataset.mrsRecords.filter((row) =>
+    isOpenMrsStatus(row.status) &&
+    inScope(row.date, filters, [
+      { key: 'itemName', value: row.itemName },
+      { key: 'batchNo', value: row.batchNo },
+      { key: 'status', value: row.status },
+    ])
+  );
+  const qaPending = dataset.productionBatches.filter((batch) => batch.status === 'QA_PENDING' && matchesProductionBatchFilters(batch, filters)).length
+    + dataset.qualityRequests.filter((row) =>
+      (row.status === 'pending' || row.status === 'approved' || row.status === 'under_testing') &&
+      inScope(row.date, filters, [
+        { key: 'itemName', value: row.itemName },
+        { key: 'batchNo', value: row.batchNo },
+        { key: 'partyName', value: row.requestedBy },
+        { key: 'status', value: row.status },
+      ])
+    ).length;
+  const blockedBatches = dataset.productionBatches.filter((batch) => batch.status === 'BLOCKED' && matchesProductionBatchFilters(batch, filters)).length;
   const pendingPiQty = dataset.proformaInvoices
-    .filter((row) => row.status === 'pending' || row.status === 'partial')
+    .filter((row) => isOpenPiStatus(row.status) && matchesProformaInvoiceFilters(row, filters))
     .reduce((sum, row) => sum + row.items.reduce((itemSum, item) => itemSum + Math.max(0, (item.quantity || 0) - (item.invoicedQty || 0)), 0), 0);
 
   const inventoryValue = stockPositions.reduce((sum, row) => sum + row.value, 0);
@@ -384,21 +440,15 @@ export const buildReportView = (dataset: ReportDataset, filters: ReportFilters) 
   );
 
   const piRows = dataset.proformaInvoices.filter((row) =>
-    inScope(row.date, filters, [
-      { key: 'partyName', value: row.customerName },
-      { key: 'status', value: row.status },
-    ])
+    matchesProformaInvoiceFilters(row, filters)
   );
 
   const invoiceRows = dataset.invoices.filter((row) =>
-    inScope(row.date, filters, [
-      { key: 'partyName', value: row.customerName },
-      { key: 'status', value: row.status },
-    ])
+    matchesInvoiceFilters(row, filters)
   );
 
   const openMrsRows = dataset.mrsRecords.filter((row) =>
-    row.status !== 'CLOSED' &&
+    isOpenMrsStatus(row.status) &&
     inScope(row.date, filters, [
       { key: 'itemName', value: row.itemName },
       { key: 'batchNo', value: row.batchNo },
@@ -426,11 +476,12 @@ export const buildReportView = (dataset: ReportDataset, filters: ReportFilters) 
     invoiceRows,
     openMrsRows,
     expiryBuckets,
-    totalPendingPiQty: piRows.reduce((sum, row) => sum + row.items.reduce((itemSum, item) => itemSum + Math.max(0, item.quantity - (item.invoicedQty || 0)), 0), 0),
+    totalPendingPiQty: piRows
+      .filter((row) => isOpenPiStatus(row.status))
+      .reduce((sum, row) => sum + row.items.reduce((itemSum, item) => itemSum + Math.max(0, item.quantity - (item.invoicedQty || 0)), 0), 0),
     totalInvoiceAmount: invoiceRows.reduce((sum, row) => sum + (row.totalAmount || 0), 0),
     totalMovementQty: movementRows.reduce((sum, row) => sum + (row.quantity || 0), 0),
     throughputTrend: buildThroughputTrend(dataset, filters),
     funnel: buildFunnel(dataset, filters),
   };
 };
-

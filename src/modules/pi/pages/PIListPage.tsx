@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FileCheck, Lock, ReceiptText, Users } from 'lucide-react';
+import { Eye, FileCheck, Lock, Pencil, ReceiptText, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
 import CompactSelect from '@/components/CompactSelect';
 import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
 import { piApi } from '../services/piApi';
-import { invoiceAPI } from '@/services/api';
 import type { PIStatus, ProformaInvoiceRecord } from '../types';
 
 const STATUS_LABELS: Record<PIStatus, string> = {
@@ -21,48 +22,21 @@ const STATUS_LABELS: Record<PIStatus, string> = {
 };
 
 const statusColors: Record<PIStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-amber-100 text-amber-800',
   partial: 'bg-blue-100 text-blue-800',
   completed: 'bg-emerald-100 text-emerald-800',
-  closed: 'bg-gray-100 text-gray-700',
+  closed: 'bg-slate-200 text-slate-700',
 };
 
-const useMock = import.meta.env.DEV;
+const remainingQtyForRecord = (record: ProformaInvoiceRecord) =>
+  record.items.reduce((sum, item) => sum + (item.remainingQty || 0), 0);
 
-const mockPI: ProformaInvoiceRecord[] = [
-  {
-    id: 'pi-1',
-    piNo: 'PI-240401-101',
-    date: '2026-04-01',
-    customerId: 'c-1',
-    customerName: 'XYZ Industries',
-    customerAddress: 'Plot 21',
-    items: [
-      { itemId: 'fg-1', itemName: 'Motor Assembly A1', quantity: 50, rate: 4500, amount: 225000 },
-      { itemId: 'fg-2', itemName: 'Gear Box GB-200', quantity: 20, rate: 8200, amount: 164000 },
-    ],
-    totalQuantity: 70,
-    totalAmount: 389000,
-    status: 'partial',
-    createdAt: '2026-04-01',
-  },
-  {
-    id: 'pi-2',
-    piNo: 'PI-240402-114',
-    date: '2026-04-02',
-    customerId: 'c-2',
-    customerName: 'PQR Trading Co.',
-    customerAddress: 'Ring Road',
-    items: [{ itemId: 'fg-3', itemName: 'Packing Box Large', quantity: 200, rate: 45, amount: 9000 }],
-    totalQuantity: 200,
-    totalAmount: 9000,
-    status: 'pending',
-    createdAt: '2026-04-02',
-  },
-];
+const canEditRecord = (record: ProformaInvoiceRecord) =>
+  record.status === 'pending' && record.items.every((item) => (item.invoicedQty || 0) <= 0);
 
 export default function PIListPage() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [records, setRecords] = useState<ProformaInvoiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -70,94 +44,112 @@ export default function PIListPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  const canCreatePi = hasPermission('proforma_invoices.create');
+  const canEditPi = hasPermission('proforma_invoices.edit');
+  const canCreateInvoice = hasPermission('invoices.create');
+
   useEffect(() => {
     let active = true;
+
     const load = async () => {
       try {
         const data = await piApi.getAll();
-        if (!active) return;
-        setRecords(useMock && data.length === 0 ? mockPI : data);
+        if (active) {
+          setRecords(data);
+        }
       } catch {
-        if (active) setRecords(useMock ? mockPI : []);
+        if (active) {
+          setRecords([]);
+          toast.error('Failed to load proforma invoices');
+        }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
+
     load();
+
     return () => {
       active = false;
     };
   }, []);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return records.filter((r) => {
-      if (status !== 'all' && r.status !== status) return false;
-      if (dateFrom && r.date < dateFrom) return false;
-      if (dateTo && r.date > dateTo) return false;
-      if (!q) return true;
-      return `${r.piNo} ${r.customerName}`.toLowerCase().includes(q);
+    const query = search.trim().toLowerCase();
+
+    return records.filter((record) => {
+      if (status !== 'all' && record.status !== status) return false;
+      if (dateFrom && record.date < dateFrom) return false;
+      if (dateTo && record.date > dateTo) return false;
+      if (!query) return true;
+      return `${record.piNo} ${record.customerName}`.toLowerCase().includes(query);
     });
-  }, [records, search, status, dateFrom, dateTo]);
+  }, [dateFrom, dateTo, records, search, status]);
 
   const kpis: ListPageKpi[] = useMemo(() => {
-    const pending = records.filter((r) => r.status === 'pending').length;
-    const partial = records.filter((r) => r.status === 'partial').length;
-    const completed = records.filter((r) => r.status === 'completed').length;
-    const totalAmount = records.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+    const totalAmount = records.reduce((sum, record) => sum + record.totalAmount, 0);
+    const pendingCount = records.filter((record) => record.status === 'pending').length;
+    const partialCount = records.filter((record) => record.status === 'partial').length;
+    const openQty = records
+      .filter((record) => record.status === 'pending' || record.status === 'partial')
+      .reduce((sum, record) => sum + remainingQtyForRecord(record), 0);
+
     return [
-      { id: 'all', label: 'Total PI', value: records.length.toLocaleString('en-IN'), icon: ReceiptText, tone: 'blue' },
-      { id: 'pending', label: 'Pending', value: pending.toLocaleString('en-IN'), icon: Lock, tone: 'orange' },
-      { id: 'partial', label: 'Partial', value: partial.toLocaleString('en-IN'), icon: FileCheck, tone: 'purple' },
-      { id: 'amount', label: 'Total Amount', value: `INR ${totalAmount.toLocaleString('en-IN')}`, icon: Users, tone: 'green' },
-      { id: 'completed', label: 'Completed', value: completed.toLocaleString('en-IN'), icon: FileCheck, tone: 'green' },
+      { id: 'total', label: 'Total PI', value: records.length.toLocaleString('en-IN'), icon: ReceiptText, tone: 'blue' },
+      { id: 'pending', label: 'Pending', value: pendingCount.toLocaleString('en-IN'), icon: Lock, tone: 'orange' },
+      { id: 'partial', label: 'Partial', value: partialCount.toLocaleString('en-IN'), icon: FileCheck, tone: 'purple' },
+      { id: 'open-qty', label: 'Open Qty', value: openQty.toLocaleString('en-IN'), icon: Wallet, tone: 'green' },
+      { id: 'amount', label: 'Total Amount', value: `INR ${totalAmount.toLocaleString('en-IN')}`, icon: Wallet, tone: 'green' },
     ].slice(0, 4);
   }, [records]);
 
   const exportCsv = () => {
     exportCsvFile(`proforma-invoice-list-${csvDateSuffix()}.csv`, [
-      ['PI No', 'Date', 'Customer', 'Total Items', 'Total Qty', 'Total Amount', 'Status'],
-      ...filtered.map((r) => [r.piNo, r.date, r.customerName, r.items.length, r.totalQuantity, r.totalAmount, STATUS_LABELS[r.status]]),
+      ['PI No', 'Date', 'Customer', 'Total Items', 'Total Qty', 'Remaining Qty', 'Total Amount', 'Status'],
+      ...filtered.map((record) => [
+        record.piNo,
+        record.date,
+        record.customerName,
+        record.items.length,
+        record.totalQuantity,
+        remainingQtyForRecord(record),
+        record.totalAmount,
+        STATUS_LABELS[record.status],
+      ]),
     ]);
   };
 
   const handleClose = async (record: ProformaInvoiceRecord) => {
     try {
-      await piApi.updateStatus(record.id, 'closed');
-      setRecords((prev) => prev.map((r) => (r.id === record.id ? { ...r, status: 'closed' } : r)));
+      const updated = await piApi.close(record.id);
+      setRecords((current) => current.map((row) => (row.id === updated.id ? updated : row)));
       toast.success('PI closed');
     } catch {
       toast.error('Failed to close PI');
     }
   };
 
-  const handleConvert = async (record: ProformaInvoiceRecord) => {
-    try {
-      await invoiceAPI.createFromPI(record.id, {});
-      toast.success('Invoice created from PI');
-    } catch {
-      toast.error('Failed to convert PI');
-    }
-  };
-
   const columns = [
-    { key: 'piNo', header: 'PI No', render: (r: ProformaInvoiceRecord) => <span className="font-medium text-primary">{r.piNo}</span> },
+    { key: 'piNo', header: 'PI No', render: (record: ProformaInvoiceRecord) => <span className="font-medium text-primary">{record.piNo}</span> },
     { key: 'date', header: 'Date' },
     { key: 'customerName', header: 'Customer' },
-    { key: 'totalItems', header: 'Total Items', className: 'text-right', render: (r: ProformaInvoiceRecord) => r.items.length },
-    { key: 'totalQuantity', header: 'Total Qty', className: 'text-right' },
-    { key: 'totalAmount', header: 'Total Amount', className: 'text-right', render: (r: ProformaInvoiceRecord) => `INR ${r.totalAmount.toLocaleString('en-IN')}` },
-    { key: 'status', header: 'Status', render: (r: ProformaInvoiceRecord) => <Badge variant="secondary" className={statusColors[r.status]}>{STATUS_LABELS[r.status]}</Badge> },
+    { key: 'itemCount', header: 'Lines', className: 'text-right', render: (record: ProformaInvoiceRecord) => record.items.length },
+    { key: 'totalQuantity', header: 'Ordered Qty', className: 'text-right' },
+    { key: 'remainingQty', header: 'Remaining Qty', className: 'text-right', render: (record: ProformaInvoiceRecord) => remainingQtyForRecord(record).toLocaleString('en-IN') },
+    { key: 'totalAmount', header: 'Amount', className: 'text-right', render: (record: ProformaInvoiceRecord) => `INR ${record.totalAmount.toLocaleString('en-IN')}` },
+    { key: 'status', header: 'Status', render: (record: ProformaInvoiceRecord) => <Badge variant="secondary" className={statusColors[record.status]}>{STATUS_LABELS[record.status]}</Badge> },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Proforma Invoice"
-        description="Manage PI lifecycle before invoice conversion."
+        description="Manage PI lifecycle, partial conversion, and manual close before final invoicing."
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Proforma Invoice' }]}
-        addLabel="Create PI"
-        onAdd={() => navigate('/proforma-invoices/create')}
+        addLabel={canCreatePi ? 'Create PI' : undefined}
+        onAdd={canCreatePi ? () => navigate('/proforma-invoices/create') : undefined}
         onExport={exportCsv}
       />
 
@@ -165,17 +157,19 @@ export default function PIListPage() {
 
       <ListFilterBar>
         <div className="min-w-[220px] flex-1">
-          <Input placeholder="Search PI no or customer" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input placeholder="Search PI no or customer" value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
         <CompactSelect
           value={status}
           onChange={(value) => setStatus(value as 'all' | PIStatus)}
-          options={[{ value: 'all', label: 'All Status' }, ...Object.entries(STATUS_LABELS).map(([k, v]) => ({ value: k, label: v }))]}
+          options={[{ value: 'all', label: 'All Status' }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
           className="w-40"
         />
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
-        <Button variant="outline" onClick={() => { setSearch(''); setStatus('all'); setDateFrom(''); setDateTo(''); }}>Clear</Button>
+        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="w-[150px]" />
+        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="w-[150px]" />
+        <Button variant="outline" onClick={() => { setSearch(''); setStatus('all'); setDateFrom(''); setDateTo(''); }}>
+          Clear
+        </Button>
       </ListFilterBar>
 
       <ListTablePanel title="PI Records" description={`${filtered.length} records`}>
@@ -185,16 +179,39 @@ export default function PIListPage() {
           isLoading={loading}
           pageSize={10}
           pageSizeOptions={[10, 25, 50, 100]}
-          actions={(row) => (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/proforma-invoices/${row.id}`)}><Eye className="mr-1 h-4 w-4" /> View</Button>
-              <Button variant="ghost" size="sm" onClick={() => handleConvert(row)}><FileCheck className="mr-1 h-4 w-4" /> Convert</Button>
-              <Button variant="ghost" size="sm" disabled={row.status === 'closed'} onClick={() => handleClose(row)}><Lock className="mr-1 h-4 w-4" /> Close</Button>
-            </div>
-          )}
+          actions={(row) => {
+            const canConvert = row.status !== 'completed' && row.status !== 'closed' && remainingQtyForRecord(row) > 0;
+            const canClose = row.status !== 'completed' && row.status !== 'closed';
+
+            return (
+              <div className="flex items-center justify-end gap-1">
+                <TableActionButton label="View" icon={Eye} tone="blue" onClick={() => navigate(`/proforma-invoices/${row.id}`)} />
+                {canEditPi && canEditRecord(row) ? (
+                  <TableActionButton label="Edit" icon={Pencil} tone="indigo" onClick={() => navigate(`/proforma-invoices/${row.id}/edit`)} />
+                ) : null}
+                {canCreateInvoice ? (
+                  <TableActionButton
+                    label="Convert"
+                    icon={FileCheck}
+                    tone="emerald"
+                    disabled={!canConvert}
+                    onClick={() => navigate(`/invoices/create?piId=${row.id}`)}
+                  />
+                ) : null}
+                {canEditPi ? (
+                  <TableActionButton
+                    label="Close"
+                    icon={Lock}
+                    tone="rose"
+                    disabled={!canClose}
+                    onClick={() => handleClose(row)}
+                  />
+                ) : null}
+              </div>
+            );
+          }}
         />
       </ListTablePanel>
     </div>
   );
 }
-

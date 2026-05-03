@@ -3,8 +3,10 @@ import { itemsApi } from '@/modules/items/services/itemsApi';
 import { ledgerApi } from '@/modules/ledger/services/ledgerApi';
 import type { ItemRecord } from '@/modules/items/types';
 import type { LedgerEntry } from '@/modules/ledger/types';
+import { USE_MOCK } from '@/services/api';
 
 export interface StockBatch {
+  itemId?: string;
   itemName: string;
   batchNo: string;
   availableQty: number;
@@ -18,13 +20,14 @@ const fallbackItems: ItemRecord[] = [
 ];
 
 const fallbackStock: StockBatch[] = [
-  { itemName: 'Finished Product A', batchNo: 'FG-001', availableQty: 480, mfgDate: '2026-04-08', expiryDate: '2028-04-08' },
-  { itemName: 'Motor Assembly A1', batchNo: 'FG-240401-01', availableQty: 120, mfgDate: '2026-04-01', expiryDate: '2028-04-01' },
+  { itemId: 'fg-1', itemName: 'Finished Product A', batchNo: 'FG-001', availableQty: 480, mfgDate: '2026-04-08', expiryDate: '2028-04-08' },
+  { itemId: '10', itemName: 'Motor Assembly A1', batchNo: 'FG-240401-01', availableQty: 120, mfgDate: '2026-04-01', expiryDate: '2028-04-01' },
 ];
 
 function computeBalances(entries: LedgerEntry[]): StockBatch[] {
   const map = new Map<string, StockBatch>();
   entries.forEach((entry) => {
+    if (entry.itemCategory !== 'FINISHED') return;
     const key = `${entry.itemName}||${entry.batchNo}`;
     const prev = map.get(key);
     const base = prev ?? {
@@ -54,18 +57,19 @@ export function useInvoiceStock() {
     const load = async () => {
       try {
         const [itemsData, ledgerData] = await Promise.all([
-          itemsApi.getAll(),
+          itemsApi.getAll({ paginate: false, status: 'active', itemType: 'finished' }),
           ledgerApi.getAll({}, 1, 2000).then((r) => r.data),
         ]);
         if (!active) return;
         const finished = itemsData.filter((i) => i.itemType === 'finished');
-        setItems(finished.length ? finished : fallbackItems);
-        const computed = computeBalances(ledgerData ?? []);
-        setStock(computed.length ? computed : fallbackStock);
+        setItems(finished.length ? finished : (USE_MOCK ? fallbackItems : []));
+        const finishedNames = new Set(finished.map((item) => item.storeName || item.tallyName || item.sku));
+        const computed = computeBalances(ledgerData ?? []).filter((row) => finishedNames.has(row.itemName));
+        setStock(computed.length ? computed : (USE_MOCK ? fallbackStock : []));
       } catch {
         if (!active) return;
-        setItems(fallbackItems);
-        setStock(fallbackStock);
+        setItems(USE_MOCK ? fallbackItems : []);
+        setStock(USE_MOCK ? fallbackStock : []);
       } finally {
         if (active) setLoading(false);
       }
@@ -94,11 +98,24 @@ export function useInvoiceStock() {
     return map;
   }, [stock]);
 
+  const batchesByItemId = useMemo(() => {
+    const map = new Map<string, StockBatch[]>();
+    stock.forEach((batch) => {
+      const itemId = batch.itemId ?? items.find((item) => (item.storeName || item.tallyName || item.sku) === batch.itemName)?.id;
+      if (!itemId) return;
+      const list = map.get(itemId) ?? [];
+      list.push({ ...batch, itemId });
+      map.set(itemId, list);
+    });
+    return map;
+  }, [items, stock]);
+
   return {
     items,
     stock,
     loading,
     itemNameById,
     batchesByItemName,
+    batchesByItemId,
   };
 }

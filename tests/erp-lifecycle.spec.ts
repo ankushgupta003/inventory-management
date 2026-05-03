@@ -3,13 +3,27 @@ import { test, expect } from '../playwright-fixture';
 const adminUser = {
   id: '1',
   name: 'Admin User',
+  fullName: 'Admin User',
   email: 'admin@erp.com',
-  role: 'admin',
+  accountType: 'COMPANY_ADMIN',
+  companyId: 'company-1',
+  companyName: 'Demo Company',
+  companyStatus: 'ACTIVE',
+  mustResetPassword: false,
+  isActive: true,
+  permissions: [],
+  departmentId: null,
+  departmentName: null,
+  designationId: null,
+  designationName: null,
+  roleId: null,
+  roleName: 'Admin',
 };
 
 const initAuth = (user: typeof adminUser) => {
   localStorage.clear();
   localStorage.setItem('auth_token', 'mock-jwt-token');
+  localStorage.setItem('auth_portal', 'company');
   localStorage.setItem('auth_user', JSON.stringify(user));
 };
 

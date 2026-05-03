@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -159,9 +160,9 @@ export default function SamplingListPage() {
                     <TableCell className="text-right">{firstItem?.sampleQty ?? 0}</TableCell>
                     <TableCell>{record.toDepartment || 'QC'}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/sampling/${record.id}`)}>
-                        <Eye className="h-4 w-4 mr-1" /> View
-                      </Button>
+                      <div className="flex items-center justify-end">
+                        <TableActionButton label="View" icon={Eye} tone="blue" onClick={() => navigate(`/sampling/${record.id}`)} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

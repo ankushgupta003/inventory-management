@@ -3,7 +3,8 @@ import { piApi } from '@/modules/pi/services/piApi';
 import { invoiceApi } from '@/modules/invoices/services/invoiceApi';
 import { qualityRequestsApi } from '@/modules/quality-requests/services/qualityRequestsApi';
 import { stockMovementApi } from '@/modules/stock-movement/services/stockMovementApi';
-import { loadBatches, loadMrs, loadQa } from '@/modules/production/productionStore';
+import mrsApi from '@/modules/mrs/services/mrsApi';
+import { productionApi } from '@/modules/production/services/productionApi';
 import type { AnalyticsMrsRecord, ReportDataset, StockPosition } from './types';
 import type { LedgerEntry } from '@/modules/ledger/types';
 
@@ -38,34 +39,24 @@ const toStockPositions = (ledgerEntries: LedgerEntry[]): StockPosition[] => {
   return Array.from(map.values()).filter((row) => row.qty > 0);
 };
 
-const normalizeMrs = (): AnalyticsMrsRecord[] => {
-  const batches = loadBatches();
-  const rows: AnalyticsMrsRecord[] = [];
-  batches.forEach((batch) => {
-    const list = loadMrs(batch.id);
-    list.forEach((mrs) => {
-      rows.push({
-        id: mrs.id,
-        date: mrs.date,
-        batchId: batch.id,
-        batchNo: batch.batchNo,
-        itemName: mrs.itemName,
-        qtyRequested: Number(mrs.qtyRequested || 0),
-        qtyIssued: Number(mrs.qtyIssued || 0),
-        status: mrs.status,
-      });
-    });
-  });
-  return rows;
-};
+const normalizeMrs = (records: Awaited<ReturnType<typeof mrsApi.getAll>>): AnalyticsMrsRecord[] =>
+  records.flatMap((mrs) =>
+    mrs.items.map((item) => ({
+      id: `${mrs.id}:${item.itemId}`,
+      date: mrs.date,
+      batchId: mrs.productionBatchId,
+      batchNo: mrs.productionBatchNo,
+      itemName: item.itemName,
+      qtyRequested: Number(item.qtyRequested || 0),
+      qtyIssued: Number(item.qtyIssued || 0),
+      status: mrs.status,
+    })),
+  );
 
 export const fetchReportDataset = async (): Promise<ReportDataset> => {
-  const batches = loadBatches();
-  const qaByBatch = batches
-    .map((batch) => ({ batchId: batch.id, qa: loadQa(batch.id) }))
-    .filter((row): row is { batchId: string; qa: NonNullable<typeof row.qa> } => Boolean(row.qa));
-
-  const [ledgerRes, piRes, invoiceRes, qualityRes, movementRes] = await Promise.allSettled([
+  const [productionRes, mrsRes, ledgerRes, piRes, invoiceRes, qualityRes, movementRes] = await Promise.allSettled([
+    productionApi.getAll(),
+    mrsApi.getAll(),
     ledgerApi.getAll(),
     piApi.getAll(),
     invoiceApi.getAll(),
@@ -74,15 +65,28 @@ export const fetchReportDataset = async (): Promise<ReportDataset> => {
   ]);
 
   const ledgerEntries = ledgerRes.status === 'fulfilled' ? (ledgerRes.value.data || []) : [];
+  const productionBatches = productionRes.status === 'fulfilled' ? productionRes.value : [];
+  const mrsRecordsRaw = mrsRes.status === 'fulfilled' ? mrsRes.value : [];
   const proformaInvoices = piRes.status === 'fulfilled' ? (piRes.value || []) : [];
   const invoices = invoiceRes.status === 'fulfilled' ? (invoiceRes.value || []) : [];
   const qualityRequests = qualityRes.status === 'fulfilled' ? (qualityRes.value || []) : [];
   const stockMovements = movementRes.status === 'fulfilled' ? (movementRes.value || []) : [];
+  const qaByBatch = productionBatches
+    .filter((batch) => batch.bmrStatus === 'SUBMITTED' || batch.status === 'QA_PENDING' || batch.status === 'RELEASED' || batch.status === 'BLOCKED')
+    .map((batch) => ({
+      batchId: batch.id,
+      qa: {
+        status: batch.status === 'RELEASED' ? 'APPROVED' : batch.status === 'BLOCKED' ? 'REJECTED' : 'PENDING',
+        remarks: batch.qaRemarks || '',
+        approvedBy: batch.qaApprovedBy || '',
+        decidedAt: batch.qaDecidedAt || '',
+      },
+    }));
 
   return {
     ledgerEntries,
-    mrsRecords: normalizeMrs(),
-    productionBatches: batches,
+    mrsRecords: normalizeMrs(mrsRecordsRaw),
+    productionBatches,
     qaByBatch,
     qualityRequests,
     proformaInvoices,
@@ -91,4 +95,3 @@ export const fetchReportDataset = async (): Promise<ReportDataset> => {
     stockPositions: toStockPositions(ledgerEntries),
   };
 };
-

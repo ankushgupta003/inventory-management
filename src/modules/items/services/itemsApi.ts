@@ -1,11 +1,30 @@
 import api from '@/services/api';
-import type { ItemRecord } from '../types';
+import type { ItemListParams, ItemListResponse, ItemRecord } from '../types';
 import type { ItemFormValues } from '../schemas/itemSchema';
 
+interface ApiEnvelope<T> {
+  data: T;
+}
+
+interface ApiListEnvelope<TData, TMeta> {
+  data: TData;
+  meta: TMeta;
+}
+
+const listItems = async (params: ItemListParams = {}) => {
+  const response = await api.get<ApiListEnvelope<ItemRecord[], ItemListResponse['meta']>>('/items', { params });
+  return response.data;
+};
+
 export const itemsApi = {
-  getAll: () => api.get<ItemRecord[]>('/items').then((r) => r.data),
-  create: (data: ItemFormValues) => api.post<ItemRecord>('/items', data).then((r) => r.data),
-  update: (id: string, data: ItemFormValues) => api.put<ItemRecord>(`/items/${id}`, data).then((r) => r.data),
-  toggleStatus: (id: string) => api.patch<ItemRecord>(`/items/${id}/status`).then((r) => r.data),
-  delete: (id: string) => api.delete(`/items/${id}`),
+  list: listItems,
+  getAll: async (params: ItemListParams = {}) => {
+    const response = await listItems({ paginate: false, ...params });
+    return response.data;
+  },
+  getById: (id: string) => api.get<ApiEnvelope<ItemRecord>>(`/items/${id}`).then((r) => r.data.data),
+  create: (data: ItemFormValues) => api.post<ApiEnvelope<ItemRecord>>('/items', data).then((r) => r.data.data),
+  update: (id: string, data: ItemFormValues) => api.put<ApiEnvelope<ItemRecord>>(`/items/${id}`, data).then((r) => r.data.data),
+  toggleStatus: (id: string, isActive?: boolean) =>
+    api.patch<ApiEnvelope<ItemRecord>>(`/items/${id}/status`, isActive === undefined ? {} : { isActive }).then((r) => r.data.data),
 };

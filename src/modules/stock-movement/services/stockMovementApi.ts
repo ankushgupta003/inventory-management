@@ -1,29 +1,48 @@
-import { USE_MOCK } from '@/services/api';
-import type { StockMovementRecord, StockMovementType } from '../types';
-import { issuesApi } from '@/modules/issues/services/issuesApi';
-import { samplingApi } from '@/modules/sampling/services/samplingApi';
-import { ledgerApi } from '@/modules/ledger/services/ledgerApi';
+import api, { USE_MOCK } from '@/services/api';
+import type { StockMovementRecord } from '../types';
+
+interface ApiEnvelope<T> {
+  data: T;
+}
+
+export type StockMovementCreatePayload = {
+  type: 'issue' | 'sampling' | 'transfer';
+  productionBatchId?: string;
+  materialRequisitionId?: string;
+  date: string;
+  fromLocation?: string;
+  toLocation?: string;
+  issuedBy?: string;
+  sampleDrawnBy?: string;
+  remarks?: string;
+  items: Array<{
+    itemId: string;
+    batchNo: string;
+    quantity: number;
+    remarks?: string;
+  }>;
+};
 
 let mockMovements: StockMovementRecord[] = [
   {
     id: 'sm-1',
-    movementNo: 'MOV-240404-001',
+    movementNo: 'MOV-00001',
     date: '2026-04-04',
     type: 'issue',
     mrsId: 'mrs-1',
-    mrsNo: 'MRS-001',
-    productionBatchId: 'prd-1:FG-240401-01',
-    productionBatchNo: 'FG-240401-01',
-    productionNo: 'PRD-240401-201',
+    mrsNo: 'MRS-00001',
+    productionBatchId: 'batch-1',
+    productionBatchNo: 'FG-001',
+    productionNo: 'PRD-00001',
     itemName: 'Steel Rod 10mm',
-    batchNo: 'B-2026-001',
+    batchNo: 'RM-001',
     quantity: 80,
     availableQty: 320,
     items: [
       {
         itemId: '1',
         itemName: 'Steel Rod 10mm',
-        batchNo: 'B-2026-001',
+        batchNo: 'RM-001',
         quantity: 80,
         availableQty: 320,
         mfgDate: '2026-01-15',
@@ -32,223 +51,120 @@ let mockMovements: StockMovementRecord[] = [
         issuedQty: 80,
         remainingQty: 20,
       },
-      {
-        itemId: '2',
-        itemName: 'Copper Wire 2mm',
-        batchNo: 'B-2026-002',
-        quantity: 5,
-        availableQty: 180,
-        mfgDate: '2026-02-10',
-        expiryDate: '2029-02-10',
-        requestedQty: 50,
-        issuedQty: 5,
-        remainingQty: 45,
-      },
     ],
-    mfgDate: '2026-01-15',
-    expiryDate: '2028-01-15',
     issuedBy: 'Store Admin',
     createdAt: '2026-04-04',
-  },
-  {
-    id: 'sm-2',
-    movementNo: 'MOV-240403-002',
-    date: '2026-04-03',
-    type: 'sampling',
-    itemName: 'Copper Wire 2mm',
-    batchNo: 'B-2026-002',
-    quantity: 3,
-    availableQty: 180,
-    items: [
-      { itemName: 'Copper Wire 2mm', batchNo: 'B-2026-002', quantity: 3, availableQty: 180, mfgDate: '2026-02-10', expiryDate: '2029-02-10' },
-    ],
-    fromLocation: 'Main Store',
-    toLocation: 'QC',
-    mfgDate: '2026-02-10',
-    expiryDate: '2029-02-10',
-    issuedBy: 'QC Lead',
-    sampleDrawnBy: 'QC Analyst',
-    createdAt: '2026-04-03',
-  },
-  {
-    id: 'sm-3',
-    movementNo: 'MOV-240402-003',
-    date: '2026-04-02',
-    type: 'transfer',
-    itemName: 'Packing Box Large',
-    batchNo: 'B-2026-003',
-    quantity: 20,
-    availableQty: 90,
-    items: [
-      { itemName: 'Packing Box Large', batchNo: 'B-2026-003', quantity: 20, availableQty: 90 },
-    ],
-    fromLocation: 'Main Store',
-    toLocation: 'Warehouse B',
-    currentLocation: 'Warehouse B',
-    locationHistory: [{ date: '2026-04-02', from: 'Main Store', to: 'Warehouse B' }],
-    createdAt: '2026-04-02',
   },
 ];
 
 export const stockMovementApi = {
-  getAll: () => {
-    if (USE_MOCK) return Promise.resolve(mockMovements);
-    // Backend aggregation endpoint (not implemented)
-    return Promise.resolve([] as StockMovementRecord[]);
+  getAll: async (params?: Record<string, string>) => {
+    if (USE_MOCK) return mockMovements;
+    const response = await api.get<ApiEnvelope<StockMovementRecord[]>>('/stock-movements', { params });
+    return response.data.data;
   },
-  getById: (id: string) => {
-    if (USE_MOCK) {
-      const match = mockMovements.find((m) => m.id === id) || mockMovements[0];
-      return Promise.resolve(match);
-    }
-    return Promise.resolve(null);
+  getById: async (id: string) => {
+    if (USE_MOCK) return mockMovements.find((movement) => movement.id === id) ?? null;
+    const response = await api.get<ApiEnvelope<StockMovementRecord>>(`/stock-movements/${id}`);
+    return response.data.data;
   },
-  create: async (payload: StockMovementRecord) => {
+  create: async (payload: StockMovementCreatePayload) => {
     if (USE_MOCK) {
-      const created = { ...payload, id: `sm-${Date.now()}`, createdAt: new Date().toISOString().split('T')[0] };
+      const created: StockMovementRecord = {
+        id: `sm-${Date.now()}`,
+        movementNo: `MOV-${String(Date.now()).slice(-5)}`,
+        date: payload.date,
+        type: payload.type,
+        mrsId: payload.materialRequisitionId,
+        productionBatchId: payload.productionBatchId,
+        itemName: '',
+        batchNo: '',
+        quantity: payload.items.reduce((sum, item) => sum + item.quantity, 0),
+        fromLocation: payload.fromLocation,
+        toLocation: payload.toLocation,
+        issuedBy: payload.issuedBy,
+        sampleDrawnBy: payload.sampleDrawnBy,
+        remarks: payload.remarks,
+        items: payload.items.map((item) => ({
+          itemId: item.itemId,
+          itemName: '',
+          batchNo: item.batchNo,
+          quantity: item.quantity,
+          remarks: item.remarks,
+        })),
+        createdAt: new Date().toISOString(),
+      };
       mockMovements = [created, ...mockMovements];
       return created;
     }
-    return payload;
+    const response = await api.post<ApiEnvelope<StockMovementRecord>>('/stock-movements', payload);
+    return response.data.data;
   },
-  // Helpers to keep backend logic separated by type
-  createIssue: async (data: {
-    movementNo: string;
+  createIssue: (data: {
     date: string;
     itemId: string;
-    itemName: string;
     batchNo: string;
-    availableQty: number;
     qty: number;
-    mfgDate: string;
-    expiryDate: string;
-    issuedBy: string;
+    issuedBy?: string;
     mrsId?: string;
-    requestedQty?: number;
-  }) => {
-    if (!USE_MOCK) {
-      await issuesApi.create({
-        issueNo: data.movementNo,
-        date: data.date,
-        issueType: 'production',
-        mrsId: data.mrsId || '',
-        items: [{
+  }) =>
+    stockMovementApi.create({
+      type: 'issue',
+      materialRequisitionId: data.mrsId,
+      date: data.date,
+      issuedBy: data.issuedBy,
+      items: [
+        {
           itemId: data.itemId,
-          itemName: data.itemName,
           batchNo: data.batchNo,
-          availableQty: data.availableQty,
-          issueQty: data.qty,
-          mfgDate: data.mfgDate,
-          expiryDate: data.expiryDate,
-          remarks: '',
-          requestedQty: data.requestedQty,
-        }],
-        issuedBy: data.issuedBy,
-        approvedBy: '',
-        receivedBy: '',
-      });
-      await ledgerApi.create({
-        entries: [{
-          date: data.date,
-          referenceNo: data.movementNo,
-          type: 'issue',
-          particulars: 'Stock Issue',
-          itemName: data.itemName,
-          itemCategory: 'RAW',
-          batchNo: data.batchNo,
-          mfgDate: data.mfgDate,
-          expiryDate: data.expiryDate,
-          receiptQty: 0,
-          issueQty: data.qty,
-          rate: 0,
-          remarks: '',
-        }],
-      });
-      return;
-    }
-  },
-  createSampling: async (data: {
-    movementNo: string;
+          quantity: data.qty,
+        },
+      ],
+    }),
+  createSampling: (data: {
     date: string;
     fromLocation: string;
     toLocation: string;
     itemId: string;
-    itemName: string;
     batchNo: string;
-    availableQty: number;
     qty: number;
-    mfgDate: string;
-    expiryDate: string;
-    issuedBy: string;
-    sampleDrawnBy: string;
-  }) => {
-    if (!USE_MOCK) {
-      await samplingApi.create({
-        samplingNo: data.movementNo,
-        date: data.date,
-        fromStore: data.fromLocation,
-        toDepartment: data.toLocation,
-        items: [{
+    issuedBy?: string;
+    sampleDrawnBy?: string;
+  }) =>
+    stockMovementApi.create({
+      type: 'sampling',
+      date: data.date,
+      fromLocation: data.fromLocation,
+      toLocation: data.toLocation,
+      issuedBy: data.issuedBy,
+      sampleDrawnBy: data.sampleDrawnBy,
+      items: [
+        {
           itemId: data.itemId,
-          itemName: data.itemName,
           batchNo: data.batchNo,
-          manufacturedBy: data.itemName,
-          mfgDate: data.mfgDate,
-          expiryDate: data.expiryDate,
-          availableQty: data.availableQty,
-          sampleQty: data.qty,
-        }],
-        issuedBy: data.issuedBy,
-        sampleDrawnBy: data.sampleDrawnBy,
-      });
-      await ledgerApi.create({
-        entries: [{
-          date: data.date,
-          referenceNo: data.movementNo,
-          type: 'sampling',
-          particulars: 'Sampling',
-          itemName: data.itemName,
-          itemCategory: 'RAW',
-          batchNo: data.batchNo,
-          mfgDate: data.mfgDate,
-          expiryDate: data.expiryDate,
-          receiptQty: 0,
-          issueQty: data.qty,
-          rate: 0,
-          remarks: '',
-        }],
-      });
-      return;
-    }
-  },
-  createTransfer: async (data: {
-    movementNo: string;
+          quantity: data.qty,
+        },
+      ],
+    }),
+  createTransfer: (data: {
     date: string;
     fromLocation: string;
     toLocation: string;
-    itemName: string;
+    itemId: string;
     batchNo: string;
     qty: number;
-  }) => {
-    if (!USE_MOCK) {
-      await ledgerApi.create({
-        entries: [{
-          date: data.date,
-          referenceNo: data.movementNo,
-          type: 'transfer',
-          particulars: `${data.fromLocation} → ${data.toLocation}`,
-          itemName: data.itemName,
-          itemCategory: 'RAW',
+  }) =>
+    stockMovementApi.create({
+      type: 'transfer',
+      date: data.date,
+      fromLocation: data.fromLocation,
+      toLocation: data.toLocation,
+      items: [
+        {
+          itemId: data.itemId,
           batchNo: data.batchNo,
-          mfgDate: '',
-          expiryDate: '',
-          receiptQty: 0,
-          issueQty: 0,
-          rate: 0,
-          remarks: '',
-        }],
-      });
-      return;
-    }
-  },
+          quantity: data.qty,
+        },
+      ],
+    }),
 };

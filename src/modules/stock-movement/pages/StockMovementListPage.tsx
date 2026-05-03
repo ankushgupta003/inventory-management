@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRightLeft, Eye, PackageOpen, TestTubeDiagonal, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
 import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
@@ -135,14 +136,9 @@ export default function StockMovementListPage() {
           isLoading={loading}
           pageSize={10}
           pageSizeOptions={[10, 25, 50, 100]}
-          actions={(row) => (
-            <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-movement/${row.id}`)}>
-              <Eye className="mr-1 h-4 w-4" /> View
-            </Button>
-          )}
+          actions={(row) => <TableActionButton label="View" icon={Eye} tone="blue" onClick={() => navigate(`/stock-movement/${row.id}`)} />}
         />
       </ListTablePanel>
     </div>
   );
 }
-

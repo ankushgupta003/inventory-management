@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import DataTable from '@/components/DataTable';
 import FormModal from '@/components/FormModal';
 import StatusBadge from '@/components/StatusBadge';
+import TableActionButton from '@/components/TableActionButton';
 
 interface InvoiceData {
   id: string; piId: string; customerName: string; date: string;
@@ -43,9 +44,9 @@ export default function FinalInvoicePage() {
         actions={(row) => {
           
           return (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => setViewInvoice(row)}><Eye className="h-3.5 w-3.5" /></Button>
-              <Button variant="ghost" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" /></Button>
+            <div className="flex items-center justify-end gap-1">
+              <TableActionButton label="View" icon={Eye} tone="blue" onClick={() => setViewInvoice(row)} />
+              <TableActionButton label="Print" icon={Printer} tone="indigo" onClick={() => window.print()} />
             </div>
           );
         }}

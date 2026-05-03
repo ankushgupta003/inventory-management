@@ -38,5 +38,7 @@ export interface StockMovementRecord {
   expiryDate?: string;
   issuedBy?: string;
   sampleDrawnBy?: string;
+  remarks?: string;
   createdAt?: string;
+  updatedAt?: string;
 }

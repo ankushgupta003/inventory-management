@@ -6,6 +6,7 @@ export interface MRSItemRow {
   unit: string;
   qtyRequested: number;
   qtyIssued: number;
+  remainingQty: number;
   batchNo: string;
   remarks: string;
 }
@@ -19,12 +20,15 @@ export interface MRSRecord {
   productionBatchNo: string;
   productionNo?: string;
   requisitionBy: string;
+  approvedBy: string;
+  approvedAt?: string;
   sanctionedBy: string;
   issuedBy: string;
   receivedBy: string;
   status: MRSStatus;
   items: MRSItemRow[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type MRSFilters = {

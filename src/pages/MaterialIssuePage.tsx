@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
+import TableActionButton from '@/components/TableActionButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -105,9 +106,7 @@ export default function MaterialIssuePage() {
                   </TableCell>
                   <TableCell className="text-right">
                     {rows.length > 1 && (
-                      <Button variant="ghost" size="sm" onClick={() => removeRow(i)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                      <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => removeRow(i)} />
                     )}
                   </TableCell>
                 </TableRow>

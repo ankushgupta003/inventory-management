@@ -70,7 +70,7 @@ export const analyticsFixture: ReportDataset = {
       customerId: 'c1',
       customerName: 'Customer A',
       customerAddress: '',
-      items: [{ itemId: 'fg1', itemName: 'Finished Product A', quantity: 500, invoicedQty: 300, rate: 250, amount: 125000 }],
+      items: [{ id: 'pi-line-1', itemId: 'fg1', itemName: 'Finished Product A', unit: 'pcs', quantity: 500, invoicedQty: 300, remainingQty: 200, rate: 250, amount: 125000, remarks: '' }],
       totalQuantity: 500,
       totalAmount: 125000,
       status: 'partial',
@@ -86,10 +86,11 @@ export const analyticsFixture: ReportDataset = {
       customerAddress: '',
       piId: 'pi-1',
       piNo: 'PI-001',
-      items: [{ itemId: 'fg1', itemName: 'Finished Product A', batchNo: 'FG-001', quantity: 300, rate: 250, taxPercent: 18, amount: 75000 }],
+      items: [{ id: 'inv-line-1', proformaInvoiceItemId: 'pi-line-1', itemId: 'fg1', itemName: 'Finished Product A', unit: 'pcs', batchNo: 'FG-001', quantity: 300, rate: 250, taxPercent: 18, amount: 75000 }],
       totalQuantity: 300,
       totalAmount: 75000,
       taxAmount: 13500,
+      grandTotal: 88500,
       status: 'completed',
     },
   ],
@@ -133,4 +134,3 @@ export const analyticsFixture: ReportDataset = {
     },
   ],
 };
-

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle, ClipboardList, Eye, PackageCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import TableActionButton from '@/components/TableActionButton';
 import { Input } from '@/components/ui/input';
 import DataTable from '@/components/DataTable';
 import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
@@ -113,19 +114,18 @@ export default function MRSListPage() {
           pageSize={10}
           pageSizeOptions={[10, 25, 50, 100]}
           actions={(row) => (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/mrs/${row.id}`)}>
-                <Eye className="mr-1 h-4 w-4" /> View
-              </Button>
+            <div className="flex items-center justify-end gap-1">
+              <TableActionButton label="View" icon={Eye} tone="blue" onClick={() => navigate(`/mrs/${row.id}`)} />
               {row.status === 'pending' && (
-                <Button variant="ghost" size="sm" onClick={() => setConfirmAction({ id: row.id, action: 'approved' })}>
-                  <CheckCircle className="mr-1 h-4 w-4" /> Approve
-                </Button>
+                <TableActionButton
+                  label="Approve"
+                  icon={CheckCircle}
+                  tone="emerald"
+                  onClick={() => setConfirmAction({ id: row.id, action: 'approved' })}
+                />
               )}
               {row.status === 'approved' && (
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/mrs/${row.id}/issue`)}>
-                  <PackageCheck className="mr-1 h-4 w-4" /> Issue
-                </Button>
+                <TableActionButton label="Issue" icon={PackageCheck} tone="emerald" onClick={() => navigate(`/mrs/${row.id}/issue`)} />
               )}
             </div>
           )}
@@ -142,4 +142,3 @@ export default function MRSListPage() {
     </div>
   );
 }
-

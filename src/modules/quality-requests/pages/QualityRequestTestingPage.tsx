@@ -86,6 +86,8 @@ export default function QualityRequestTestingPage() {
     );
   }
 
+  const canSubmitReport = record.status === 'approved' || record.status === 'under_testing';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -153,9 +155,14 @@ export default function QualityRequestTestingPage() {
       </FormSection>
 
       <FormSection title="Submit">
+        {!canSubmitReport ? (
+          <p className="text-sm text-muted-foreground">
+            Testing reports can only be submitted after approval and before final closure.
+          </p>
+        ) : null}
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => navigate(`/quality-requests/${record.id}`)}>Cancel</Button>
-          <Button onClick={onSubmit} disabled={saving}>
+          <Button onClick={onSubmit} disabled={saving || !canSubmitReport}>
             {saving ? 'Saving...' : 'Save Test Report'}
           </Button>
         </div>

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Edit2, Package, ToggleLeft, ToggleRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import DataTable from '@/components/DataTable';
+import TableActionButton from '@/components/TableActionButton';
 import StatusBadge from '@/components/StatusBadge';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { ListFilterBar, ListKpiStrip, ListPageShell, ListTablePanel, type ListPageKpi } from '@/components/list';
 import { exportCsvFile, csvDateSuffix } from '@/lib/csv';
+import { getErrorMessage } from '@/lib/apiError';
 import ItemFormModal from '../components/ItemFormModal';
 import ItemFiltersBar from '../components/ItemFiltersBar';
 import EmptyState from '../components/EmptyState';
@@ -16,7 +17,7 @@ import type { ItemFormValues } from '../schemas/itemSchema';
 import { toast } from 'sonner';
 
 export default function ItemMasterPage() {
-  const { items, allItems, filters, setFilters, addItem, updateItem, toggleStatus } = useItems();
+  const { items, summary, filters, setFilters, createItem, updateItem, toggleStatus, isLoading } = useItems();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemRecord | null>(null);
   const [toggleId, setToggleId] = useState<string | null>(null);
@@ -24,48 +25,46 @@ export default function ItemMasterPage() {
   const openCreate = () => { setEditingItem(null); setModalOpen(true); };
   const openEdit = (item: ItemRecord) => { setEditingItem(item); setModalOpen(true); };
 
-  const handleSave = (values: ItemFormValues) => {
-    if (editingItem) {
-      updateItem(editingItem.id, values);
-      toast.success('Item updated successfully');
-    } else {
-      addItem({
-        ...values,
-        sku: values.sku || '',
-        category: values.category || '',
-        hsnCode: values.hsnCode || '',
-        isActive: values.isActive,
-      } as Omit<ItemRecord, 'id' | 'createdAt'>);
-      toast.success('Item created successfully');
+  const handleSave = async (values: ItemFormValues) => {
+    try {
+      if (editingItem) {
+        await updateItem(editingItem.id, values);
+        toast.success('Item updated successfully');
+      } else {
+        await createItem(values);
+        toast.success('Item created successfully');
+      }
+      setModalOpen(false);
+    } catch (error) {
+      toast.error(getErrorMessage(error, editingItem ? 'Failed to update item' : 'Failed to create item'));
     }
-    setModalOpen(false);
   };
 
-  const handleToggleStatus = () => {
+  const handleToggleStatus = async () => {
     if (toggleId) {
-      toggleStatus(toggleId);
-      toast.success('Item status updated');
-      setToggleId(null);
+      try {
+        await toggleStatus(toggleId);
+        toast.success('Item status updated');
+        setToggleId(null);
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Failed to update item status'));
+      }
     }
   };
 
-  const toggleItem = allItems.find((i) => i.id === toggleId);
+  const toggleItem = items.find((i) => i.id === toggleId);
 
   const hasFilters = filters.search !== '' || filters.status !== 'all' || filters.itemType !== 'all';
 
   const kpis: ListPageKpi[] = useMemo(() => {
-    const active = allItems.filter((i) => i.isActive).length;
-    const inactive = allItems.length - active;
-    const raw = allItems.filter((i) => i.itemType === 'raw').length;
-    const finished = allItems.filter((i) => i.itemType === 'finished').length;
     return [
-      { id: 'total', label: 'Total Items', value: allItems.length.toLocaleString('en-IN'), icon: Package, tone: 'blue' },
-      { id: 'active', label: 'Active', value: active.toLocaleString('en-IN'), icon: Package, tone: 'green' },
-      { id: 'raw', label: 'Raw Material', value: raw.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
-      { id: 'finished', label: 'Finished Goods', value: finished.toLocaleString('en-IN'), icon: Package, tone: 'purple' },
-      { id: 'inactive', label: 'Inactive', value: inactive.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
+      { id: 'total', label: 'Total Items', value: summary.total.toLocaleString('en-IN'), icon: Package, tone: 'blue' },
+      { id: 'active', label: 'Active', value: summary.active.toLocaleString('en-IN'), icon: Package, tone: 'green' },
+      { id: 'raw', label: 'Raw Material', value: summary.raw.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
+      { id: 'finished', label: 'Finished Goods', value: summary.finished.toLocaleString('en-IN'), icon: Package, tone: 'purple' },
+      { id: 'inactive', label: 'Inactive', value: summary.inactive.toLocaleString('en-IN'), icon: Package, tone: 'orange' },
     ].slice(0, 4);
-  }, [allItems]);
+  }, [summary]);
 
   const exportCsv = () => {
     exportCsvFile(`item-master-list-${csvDateSuffix()}.csv`, [
@@ -106,7 +105,7 @@ export default function ItemMasterPage() {
     <div className="space-y-6 animate-fade-in">
       <ListPageShell
         title="Item Master"
-        description={`${allItems.length} items total, ${items.length} shown`}
+        description={`${summary.total} items total, ${items.length} shown`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Item Master' },
@@ -122,29 +121,29 @@ export default function ItemMasterPage() {
         <ItemFiltersBar filters={filters} onChange={setFilters} />
       </ListFilterBar>
 
-      {items.length === 0 ? (
+      {!isLoading && items.length === 0 ? (
         <EmptyState
           hasFilters={hasFilters}
           onClear={() => setFilters({ search: '', status: 'all', itemType: 'all' })}
           onCreate={openCreate}
         />
       ) : (
-        <ListTablePanel title="Items" description={`${items.length} records`}>
+        <ListTablePanel title="Items" description={isLoading ? 'Loading items...' : `${items.length} records`}>
           <DataTable
             columns={columns}
             data={items}
             pageSize={10}
             pageSizeOptions={[10, 25, 50, 100]}
+            isLoading={isLoading}
             actions={(row) => (
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Edit">
-                  <Edit2 className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setToggleId(row.id)} title={row.isActive ? 'Deactivate' : 'Activate'}>
-                  {row.isActive
-                    ? <ToggleRight className="h-3.5 w-3.5 text-green-600" />
-                    : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
-                </Button>
+              <div className="flex items-center justify-end gap-1">
+                <TableActionButton label="Edit" icon={Edit2} tone="amber" onClick={() => openEdit(row)} />
+                <TableActionButton
+                  label={row.isActive ? 'Deactivate' : 'Activate'}
+                  icon={row.isActive ? ToggleRight : ToggleLeft}
+                  tone={row.isActive ? 'rose' : 'emerald'}
+                  onClick={() => setToggleId(row.id)}
+                />
               </div>
             )}
           />

@@ -1,15 +1,64 @@
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
 import { Button } from '@/components/ui/button';
-import { useParties } from '../hooks/useParties';
+import { getErrorMessage } from '@/lib/apiError';
+import { partiesApi } from '../services/partiesApi';
+import type { PartyRecord } from '../types';
 
 export default function PartyViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { allParties } = useParties();
-  const party = allParties.find((p) => p.id === id);
+  const [party, setParty] = useState<PartyRecord | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!id) {
+      setParty(null);
+      setError('Party not found.');
+      setIsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    partiesApi.getById(id)
+      .then((response) => {
+        if (!active) return;
+        setParty(response);
+      })
+      .catch((nextError) => {
+        if (!active) return;
+        setParty(null);
+        setError(getErrorMessage(nextError, 'Party not found.'));
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Button variant="ghost" onClick={() => navigate('/parties')}>
+          <ArrowLeft className="h-4 w-4 mr-2" /> Back
+        </Button>
+        <p className="text-muted-foreground">Loading party...</p>
+      </div>
+    );
+  }
 
   if (!party) {
     return (
@@ -17,7 +66,7 @@ export default function PartyViewPage() {
         <Button variant="ghost" onClick={() => navigate('/parties')}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
-        <p className="text-muted-foreground">Party not found.</p>
+        <p className="text-muted-foreground">{error ?? 'Party not found.'}</p>
       </div>
     );
   }

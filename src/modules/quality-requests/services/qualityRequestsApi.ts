@@ -1,9 +1,15 @@
 import api, { USE_MOCK } from '@/services/api';
 import type {
+  QualityRequestApprovePayload,
+  QualityRequestClosePayload,
+  QualityRequestCreatePayload,
   QualityRequestRecord,
-  QualityTestResult,
-  QualityClosureDecision,
+  QualityRequestReportPayload,
 } from '../types';
+
+interface ApiEnvelope<T> {
+  data: T;
+}
 
 let mockRequests: QualityRequestRecord[] = [
   {
@@ -43,28 +49,30 @@ let mockRequests: QualityRequestRecord[] = [
 export const qualityRequestsApi = {
   getAll: () => {
     if (USE_MOCK) return Promise.resolve(mockRequests);
-    return api.get<QualityRequestRecord[]>('/quality-requests').then((r) => r.data);
+    return api.get<ApiEnvelope<QualityRequestRecord[]>>('/quality-requests').then((response) => response.data.data);
   },
   getById: (id: string) => {
     if (USE_MOCK) {
       const match = mockRequests.find((r) => r.id === id) || mockRequests[0];
       return Promise.resolve(match);
     }
-    return api.get<QualityRequestRecord>(`/quality-requests/${id}`).then((r) => r.data);
+    return api.get<ApiEnvelope<QualityRequestRecord>>(`/quality-requests/${id}`).then((response) => response.data.data);
   },
-  create: (data: QualityRequestRecord) => {
+  create: (data: QualityRequestCreatePayload) => {
     if (USE_MOCK) {
       const created: QualityRequestRecord = {
         ...data,
         id: `qr-${Date.now()}`,
+        requestNo: data.requestNo || `QREQ-${String(Date.now()).slice(-5)}`,
+        status: 'pending',
         createdAt: new Date().toISOString().split('T')[0],
       };
       mockRequests = [created, ...mockRequests];
       return Promise.resolve(created);
     }
-    return api.post<QualityRequestRecord>('/quality-requests', data).then((r) => r.data);
+    return api.post<ApiEnvelope<QualityRequestRecord>>('/quality-requests', data).then((response) => response.data.data);
   },
-  approve: (id: string, payload: { approvedBy: string; approvalRemarks?: string }) => {
+  approve: (id: string, payload: QualityRequestApprovePayload) => {
     if (USE_MOCK) {
       mockRequests = mockRequests.map((r) =>
         r.id === id
@@ -73,9 +81,9 @@ export const qualityRequestsApi = {
       );
       return Promise.resolve(mockRequests.find((r) => r.id === id) as QualityRequestRecord);
     }
-    return api.patch<QualityRequestRecord>(`/quality-requests/${id}/approve`, payload).then((r) => r.data);
+    return api.patch<ApiEnvelope<QualityRequestRecord>>(`/quality-requests/${id}/approve`, payload).then((response) => response.data.data);
   },
-  addReport: (id: string, payload: { testParameters: string; observations: string; result: QualityTestResult; attachments?: string[] }) => {
+  addReport: (id: string, payload: QualityRequestReportPayload) => {
     if (USE_MOCK) {
       mockRequests = mockRequests.map((r) =>
         r.id === id
@@ -91,9 +99,9 @@ export const qualityRequestsApi = {
       );
       return Promise.resolve(mockRequests.find((r) => r.id === id) as QualityRequestRecord);
     }
-    return api.post<QualityRequestRecord>(`/quality-requests/${id}/report`, payload).then((r) => r.data);
+    return api.post<ApiEnvelope<QualityRequestRecord>>(`/quality-requests/${id}/report`, payload).then((response) => response.data.data);
   },
-  close: (id: string, payload: { decision: QualityClosureDecision; remarks?: string }) => {
+  close: (id: string, payload: QualityRequestClosePayload) => {
     if (USE_MOCK) {
       mockRequests = mockRequests.map((r) =>
         r.id === id
@@ -102,6 +110,6 @@ export const qualityRequestsApi = {
       );
       return Promise.resolve(mockRequests.find((r) => r.id === id) as QualityRequestRecord);
     }
-    return api.patch<QualityRequestRecord>(`/quality-requests/${id}/close`, payload).then((r) => r.data);
+    return api.patch<ApiEnvelope<QualityRequestRecord>>(`/quality-requests/${id}/close`, payload).then((response) => response.data.data);
   },
 };

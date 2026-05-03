@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,17 +7,46 @@ import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
 import SurfaceCard from '@/components/SurfaceCard';
 import MRSPrintView from '../components/MRSPrintView';
-import { mockMRSRecords } from '../data/mockMRS';
 import { getMRSProgress } from '../utils/mrsProgress';
+import mrsApi from '../services/mrsApi';
+import type { MRSRecord } from '../types';
 
 export default function MRSViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [mrs, setMrs] = useState<MRSRecord | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const mrs = useMemo(() => {
-    if (!id) return null;
-    return mockMRSRecords.find((record) => record.id === id) ?? null;
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      if (!id) {
+        setMrs(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const record = await mrsApi.getById(id);
+        if (active) setMrs(record);
+      } catch {
+        if (active) setMrs(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading MRS...</div>;
+  }
 
   if (!mrs) {
     return (

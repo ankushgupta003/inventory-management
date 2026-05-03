@@ -1,11 +1,17 @@
+import axios from 'axios';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/PageHeader';
+import { useAuth } from '@/contexts/AuthContext';
+import { getErrorMessage } from '@/lib/apiError';
+import { productionApi } from '@/modules/production/services/productionApi';
+import { stockMovementApi } from '@/modules/stock-movement/services/stockMovementApi';
 import PrintLayout from '../components/PrintLayout';
 import { mockBmrData } from '../mockData';
 import type { BmrSchemaValues } from '../schemas/bmrSchema';
-import { useParams } from 'react-router-dom';
-import { getBatch, loadBmr } from '@/modules/production/productionStore';
+import { buildDefaultBmrValues } from '../utils/bmrData';
 
 const STORAGE_KEY = 'bmr_form_draft';
 const BATCH_KEY = 'bmr_batch_draft';
@@ -21,7 +27,7 @@ const loadDraft = (): BmrSchemaValues | null => {
   }
 };
 
-const loadBatch = () => {
+const loadBatchOverride = (): BmrSchemaValues['batchInfo'] | null => {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem(BATCH_KEY);
   if (!raw) return null;
@@ -32,28 +38,126 @@ const loadBatch = () => {
   }
 };
 
+const noticeClassName = 'rounded-md border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground';
+
+function isHttpStatus(error: unknown, status: number) {
+  return axios.isAxiosError(error) && error.response?.status === status;
+}
+
 export default function BMRPrintPage() {
   const params = useParams();
   const batchId = params.batchId;
-  const stored = batchId ? loadBmr(batchId) : null;
-  const batch = batchId ? getBatch(batchId) : null;
-  const draft = loadDraft();
-  const batchOverride = loadBatch();
-  const fallback = draft ? { ...draft, batchInfo: batchOverride ?? draft.batchInfo } : { ...mockBmrData, batchInfo: batchOverride ?? mockBmrData.batchInfo };
-  const data = stored?.data
-    ? {
-      ...stored.data,
-      batchInfo: batch
+  const { hasPermission } = useAuth();
+  const [loading, setLoading] = useState(Boolean(batchId));
+  const [data, setData] = useState<BmrSchemaValues>(() => {
+    const draft = loadDraft();
+    const batchOverride = loadBatchOverride();
+    return buildDefaultBmrValues({
+      existingData: draft
         ? {
-          productName: batch.productName,
-          batchNo: batch.batchNo,
-          batchSize: batch.batchSize,
-          mfgDate: batch.mfgDate,
-          expDate: batch.expDate,
-        }
-        : stored.data.batchInfo,
+            ...draft,
+            batchInfo: batchOverride ?? draft.batchInfo,
+          }
+        : {
+            ...mockBmrData,
+            batchInfo: batchOverride ?? mockBmrData.batchInfo,
+          },
+      });
+  });
+  const [loadNotice, setLoadNotice] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const canViewMovements = hasPermission('stock_movement.view');
+
+  useEffect(() => {
+    if (!batchId) {
+      setLoadNotice(null);
+      setNotFound(false);
+      setLoading(false);
+      return;
     }
-    : fallback;
+
+    let active = true;
+
+    const load = async () => {
+      setLoading(true);
+      setLoadNotice(null);
+      setNotFound(false);
+      try {
+        const batch = await productionApi.getById(batchId);
+
+        if (!active) return;
+
+        const [bmrResult, mrsResult, movementResult] = await Promise.all([
+          productionApi.getBmr(batchId)
+            .then((data) => ({ ok: true as const, data }))
+            .catch((error: unknown) => ({ ok: false as const, error })),
+          productionApi.getMrs(batchId)
+            .then((data) => ({ ok: true as const, data }))
+            .catch((error: unknown) => ({ ok: false as const, error })),
+          canViewMovements
+            ? stockMovementApi.getAll({ productionBatchId: batchId })
+                .then((data) => ({ ok: true as const, data }))
+                .catch((error: unknown) => ({ ok: false as const, error }))
+            : Promise.resolve({ ok: true as const, data: [] }),
+        ]);
+
+        const notices: string[] = [];
+        const existingData = bmrResult.ok ? (bmrResult.data?.data ?? null) : null;
+        const mrsRecords = mrsResult.ok ? mrsResult.data : [];
+        const movements = canViewMovements && movementResult.ok ? movementResult.data : [];
+
+        if (!bmrResult.ok) {
+          notices.push(getErrorMessage(bmrResult.error, 'Unable to load saved BMR data.'));
+        }
+
+        if (!mrsResult.ok) {
+          notices.push(getErrorMessage(mrsResult.error, 'Unable to load linked MRS records.'));
+        }
+
+        if (canViewMovements && !movementResult.ok) {
+          notices.push(getErrorMessage(movementResult.error, 'Unable to load stock movement history.'));
+        }
+
+        setData(
+          buildDefaultBmrValues({
+            batch,
+            existingData,
+            mrsRecords,
+            movements,
+          }),
+        );
+        setLoadNotice(notices.length ? notices.join(' ') : null);
+      } catch (error) {
+        if (!active) return;
+        if (isHttpStatus(error, 404)) {
+          setNotFound(true);
+        } else {
+          setLoadNotice(getErrorMessage(error, 'Failed to load print view'));
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [batchId, canViewMovements]);
+
+  const yieldPercent = useMemo(
+    () => (data.finalOutput.expectedQty ? ((data.finalOutput.actualQty / data.finalOutput.expectedQty) * 100).toFixed(2) : '0'),
+    [data.finalOutput.actualQty, data.finalOutput.expectedQty],
+  );
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading print view...</div>;
+  }
+
+  if (notFound) {
+    return <div className="text-sm text-muted-foreground">Batch not found.</div>;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -68,10 +172,16 @@ export default function BMRPrintPage() {
         ]}
         action={(
           <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" /> Print
+            <Printer className="mr-2 h-4 w-4" /> Print
           </Button>
         )}
       />
+
+      {loadNotice ? (
+        <div className={noticeClassName}>
+          {loadNotice}
+        </div>
+      ) : null}
 
       <div className="space-y-6 print:space-y-0">
         <PrintLayout title="Page 1 - Basic Info & Raw Material" pageNumber={1}>
@@ -100,7 +210,7 @@ export default function BMRPrintPage() {
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase mb-1">Raw Material Consumption</div>
+              <div className="mb-1 text-xs font-semibold uppercase">Raw Material Consumption</div>
               <table className="bmr-table">
                 <thead>
                   <tr>
@@ -130,7 +240,7 @@ export default function BMRPrintPage() {
         </PrintLayout>
 
         <PrintLayout title="Page 2 - Manufacturing Process" pageNumber={2}>
-          <div className="text-xs font-semibold uppercase mb-1">Manufacturing Process Log</div>
+          <div className="mb-1 text-xs font-semibold uppercase">Manufacturing Process Log</div>
           <table className="bmr-table">
             <thead>
               <tr>
@@ -162,7 +272,7 @@ export default function BMRPrintPage() {
         <PrintLayout title="Page 3 - Sterilization & Packing" pageNumber={3}>
           <div className="space-y-3">
             <div>
-              <div className="text-xs font-semibold uppercase mb-1">Sterilization</div>
+              <div className="mb-1 text-xs font-semibold uppercase">Sterilization</div>
               <table className="bmr-table">
                 <thead>
                   <tr>
@@ -182,7 +292,7 @@ export default function BMRPrintPage() {
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase mb-1">Packing</div>
+              <div className="mb-1 text-xs font-semibold uppercase">Packing</div>
               <table className="bmr-table">
                 <thead>
                   <tr>
@@ -202,7 +312,7 @@ export default function BMRPrintPage() {
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase mb-1">Labelling</div>
+              <div className="mb-1 text-xs font-semibold uppercase">Labelling</div>
               <table className="bmr-table">
                 <thead>
                   <tr>
@@ -224,7 +334,7 @@ export default function BMRPrintPage() {
         <PrintLayout title="Page 4 - Final Output & QA Release" pageNumber={4}>
           <div className="space-y-3">
             <div>
-              <div className="text-xs font-semibold uppercase mb-1">Final Output</div>
+              <div className="mb-1 text-xs font-semibold uppercase">Final Output</div>
               <table className="bmr-table">
                 <thead>
                   <tr>
@@ -239,14 +349,14 @@ export default function BMRPrintPage() {
                     <td>{data.finalOutput.expectedQty}</td>
                     <td>{data.finalOutput.actualQty}</td>
                     <td>{data.finalOutput.rejectedQty}</td>
-                    <td>{data.finalOutput.expectedQty ? ((data.finalOutput.actualQty / data.finalOutput.expectedQty) * 100).toFixed(2) : '0'}</td>
+                    <td>{yieldPercent}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase mb-1">QA Release</div>
+              <div className="mb-1 text-xs font-semibold uppercase">QA Release</div>
               <table className="bmr-table">
                 <thead>
                   <tr>
@@ -265,7 +375,7 @@ export default function BMRPrintPage() {
               </table>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 text-xs mt-6">
+            <div className="mt-6 grid grid-cols-3 gap-4 text-xs">
               <div className="border-t border-black pt-2">Operator</div>
               <div className="border-t border-black pt-2 text-center">Supervisor</div>
               <div className="border-t border-black pt-2 text-right">QA</div>

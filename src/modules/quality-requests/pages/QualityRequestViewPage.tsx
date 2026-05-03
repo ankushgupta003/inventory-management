@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
 import { qualityRequestsApi } from '../services/qualityRequestsApi';
 import type { QualityRequestRecord } from '../types';
 import { toast } from 'sonner';
 
 export default function QualityRequestViewPage() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const [record, setRecord] = useState<QualityRequestRecord | null>(null);
@@ -23,6 +25,12 @@ export default function QualityRequestViewPage() {
   const [approvalRemarks, setApprovalRemarks] = useState('');
   const [decision, setDecision] = useState<'accept' | 'reject'>('accept');
   const [closureRemarks, setClosureRemarks] = useState('');
+
+  useEffect(() => {
+    if (user?.fullName && !approvalBy) {
+      setApprovalBy(user.fullName);
+    }
+  }, [approvalBy, user?.fullName]);
 
   useEffect(() => {
     let active = true;

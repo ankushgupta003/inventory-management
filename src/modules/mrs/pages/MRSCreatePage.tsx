@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import FormSection from '@/components/FormSection';
+import TableActionButton from '@/components/TableActionButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,13 +14,16 @@ import { useAvailableItems } from '../hooks/useMRS';
 import { mrsFormSchema, type MRSFormValues } from '../schemas/mrsSchema';
 import { useProductionBatches } from '@/modules/production/hooks/useProductionBatches';
 import { toast } from 'sonner';
+import mrsApi from '../services/mrsApi';
+import { useState } from 'react';
 
 const departments = ['Production', 'Testing', 'Maintenance', 'Quality Control', 'Packaging'];
 
 export default function MRSCreatePage() {
   const navigate = useNavigate();
-  const availableItems = useAvailableItems();
+  const { options: availableItems, loading: itemsLoading } = useAvailableItems();
   const { options: batchOptions, loading: batchLoading } = useProductionBatches();
+  const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<MRSFormValues>({
     resolver: zodResolver(mrsFormSchema),
@@ -52,10 +56,27 @@ export default function MRSCreatePage() {
     form.setValue('productionNo', selected?.productionNo || '');
   };
 
-  const onSubmit = (data: MRSFormValues) => {
-    console.log('MRS Data:', data);
-    toast.success('MRS created successfully');
-    navigate('/mrs');
+  const onSubmit = async (data: MRSFormValues) => {
+    setSubmitting(true);
+    try {
+      const created = await mrsApi.create({
+        productionBatchId: data.productionBatchId,
+        date: data.date,
+        department: data.department,
+        requisitionBy: data.requisitionBy,
+        items: data.items.map((item) => ({
+          itemId: item.itemId,
+          qtyRequested: item.qtyRequested,
+          remarks: item.remarks,
+        })),
+      });
+      toast.success('MRS created successfully');
+      navigate(`/mrs/${created.id}`);
+    } catch {
+      toast.error('Failed to create MRS');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const watchedItems = form.watch('items');
@@ -170,7 +191,7 @@ export default function MRSCreatePage() {
                       <td className="px-3 py-2 text-muted-foreground">{index + 1}</td>
                       <td className="px-3 py-2">
                         <Select value={form.watch(`items.${index}.itemId`)} onValueChange={(v) => onItemSelect(index, v)}>
-                          <SelectTrigger className="w-full"><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectTrigger className="w-full" disabled={itemsLoading}><SelectValue placeholder={itemsLoading ? 'Loading items...' : 'Select item'} /></SelectTrigger>
                           <SelectContent>
                             {availableItems.map((it) => <SelectItem key={it.id} value={it.id}>{it.name}</SelectItem>)}
                           </SelectContent>
@@ -204,9 +225,7 @@ export default function MRSCreatePage() {
                       </td>
                       <td className="px-3 py-2">
                         {fields.length > 1 && (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
+                          <TableActionButton label="Remove Row" icon={Trash2} tone="rose" onClick={() => remove(index)} />
                         )}
                       </td>
                     </tr>
@@ -231,7 +250,7 @@ export default function MRSCreatePage() {
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate('/mrs')}>Cancel</Button>
-          <Button type="submit" className="rounded-xl">Submit MRS</Button>
+          <Button type="submit" className="rounded-xl" disabled={submitting}>{submitting ? 'Saving...' : 'Submit MRS'}</Button>
         </div>
       </form>
     </div>
