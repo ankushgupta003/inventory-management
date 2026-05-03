@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getErrorMessage } from '@/lib/apiError';
 import { itemsApi } from '@/modules/items/services/itemsApi';
 import type { ItemRecord } from '@/modules/items/types';
 import { partiesApi } from '@/modules/parties/services/partiesApi';
@@ -78,11 +79,11 @@ export default function GoodsInwardPage() {
         if (!active) return;
         setVendors(parties.filter((party) => party.partyType === 'vendor' || party.partyType === 'both'));
         setAvailableItems(items.filter((item) => item.itemType === 'raw'));
-      } catch {
+      } catch (error) {
         if (!active) return;
         setVendors([]);
         setAvailableItems([]);
-        toast.error('Failed to load vendor and item options');
+        toast.error(getErrorMessage(error, 'Failed to load vendor and item options'));
       } finally {
         if (active) setLoadingOptions(false);
       }
@@ -125,8 +126,8 @@ export default function GoodsInwardPage() {
       toast.success('Goods inward note saved successfully');
       reset(defaultValues);
       navigate('/purchases');
-    } catch {
-      toast.error('Failed to save. Please try again.');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to save GIN'));
     } finally {
       setSubmitting(false);
     }
